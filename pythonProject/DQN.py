@@ -1,76 +1,147 @@
-import gymnasium as gym
-import math
-import random
-import matplotlib
-import matplotlib.pyplot as plt
-from collections import namedtuple, deque
-from itertools import count
-
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
+import numpy as np
+import gym
+import matplotlib.pyplot as plt
+import copy
 
-class ReplayMemory(object):
+# hyper-parameters
+#Based on the paper
+NUM_EPISODES = 500
+DISCOUNT = GAMMA = 0.01
+EPISILO = 0.99
+LR = 0.05
+UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
+MEMORY_CAPACITY = 1000
+BATCH_SIZE = 64
 
-    def __init__(self, capacity):
-        self.memory = deque([], maxlen=capacity)
+env = gym.make("gym_examples/DroneEnv")
+env = env.unwrapped
+NUM_ACTIONS = env.action_space.n
+NUM_STATES = env.observation_space.shape[0]
 
-    def push(self, *args):
-        """Save a transition"""
-        self.memory.append(Transition(*args))
+class Net(nn.Module):
+    """docstring for Net"""
 
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
+    def __init__(self):
+        super(Net, self).__init__()
+        self.fc1 = nn.Linear(NUM_STATES, 50)
+        self.fc1.weight.data.normal_(0, 0.1)
+        self.fc2 = nn.Linear(50, 30)
+        self.fc2.weight.data.normal_(0, 0.1)
+        self.out = nn.Linear(30, NUM_ACTIONS)
+        self.out.weight.data.normal_(0, 0.1)
 
-    def __len__(self):
-        return len(self.memory)
-
-class DQN(nn.Module):
-
-    def __init__(self, n_observations, n_actions):
-        super(DQN, self).__init__()
-        self.layer1 = nn.Linear(n_observations, 128)
-        self.layer2 = nn.Linear(128, 128)
-        self.layer3 = nn.Linear(128, n_actions)
-
-    # Called with either one element to determine next action, or a batch
-    # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
-        x = F.relu(self.layer1(x))
-        x = F.relu(self.layer2(x))
-        return self.layer3(x)
-
-def select_action(state):
-    global steps_done
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * \
-        math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
-    if sample > eps_threshold:
-        with torch.no_grad():
-            # t.max(1) will return the largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            return policy_net(state).max(1).indices.view(1, 1)
-    else:
-        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
+        x = self.fc1(x)
+        x = F.relu(x)
+        x = self.fc2(x)
+        x = F.relu(x)
+        action_prob = self.out(x)
+        return action_prob
 
 
+class DQN():
+    """docstring for DQN"""
+
+    def __init__(self):
+        super(DQN, self).__init__()
+        self.eval_net, self.target_net = Net(), Net()
+
+        self.learn_step_counter = 0
+        self.memory_counter = 0
+        self.memory = np.zeros((MEMORY_CAPACITY, NUM_STATES * 2 + 2))
+        # why the NUM_STATE*2 +2
+        # When we store the memory, we put the state, action, reward and next_state in the memory
+        # here reward and action is a number, state is a ndarray
+        self.optimizer = torch.optim.Adam(self.eval_net.parameters(), lr=LR)
+        self.loss_func = nn.MSELoss()
+
+    def choose_action(self, state):
+        state = torch.unsqueeze(torch.FloatTensor(state), 0)  # get a 1D array
+        if np.random.randn() <= EPISILO:  # greedy policy
+            action_value = self.eval_net.forward(state)
+            action = torch.max(action_value, 1)[1].data.numpy()
+            action = action[0] if ENV_A_SHAPE == 0 else action.reshape(ENV_A_SHAPE)
+        else:  # random policy
+            action = np.random.randint(0, NUM_ACTIONS)
+            action = action if ENV_A_SHAPE == 0 else action.reshape(ENV_A_SHAPE)
+        return action
+
+    def store_transition(self, state, action, reward, next_state):
+        transition = np.hstack((state, [action, reward], next_state))
+        index = self.memory_counter % MEMORY_CAPACITY
+        self.memory[index, :] = transition
+        self.memory_counter += 1
+
+    def learn(self):
+
+        # update the parameters
+        if self.learn_step_counter % Q_NETWORK_ITERATION == 0:
+            self.target_net.load_state_dict(self.eval_net.state_dict())
+        self.learn_step_counter += 1
+
+        # sample batch from memory
+        sample_index = np.random.choice(MEMORY_CAPACITY, BATCH_SIZE)
+        batch_memory = self.memory[sample_index, :]
+        batch_state = torch.FloatTensor(batch_memory[:, :NUM_STATES])
+        batch_action = torch.LongTensor(batch_memory[:, NUM_STATES:NUM_STATES + 1].astype(int))
+        batch_reward = torch.FloatTensor(batch_memory[:, NUM_STATES + 1:NUM_STATES + 2])
+        batch_next_state = torch.FloatTensor(batch_memory[:, -NUM_STATES:])
+
+        # q_eval
+        q_eval = self.eval_net(batch_state).gather(1, batch_action)
+        q_next = self.target_net(batch_next_state).detach()
+        q_target = batch_reward + GAMMA * q_next.max(1)[0].view(BATCH_SIZE, 1)
+        loss = self.loss_func(q_eval, q_target)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
 
-# BATCH_SIZE is the number of transitions sampled from the replay buffer
-# GAMMA is the discount factor as mentioned in the previous section
-# EPS_START is the starting value of epsilon
-# EPS_END is the final value of epsilon
-# EPS_DECAY controls the rate of exponential decay of epsilon, higher means a slower decay
-# TAU is the update rate of the target network
-# LR is the learning rate of the ``AdamW`` optimizer
-BATCH_SIZE = 128
-GAMMA = 0.99
-EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 1000
-TAU = 0.005
-LR = 1e-4
+def reward_func(env, x, x_dot, theta, theta_dot):
+    r1 = (env.x_threshold - abs(x)) / env.x_threshold - 0.5
+    r2 = (env.theta_threshold_radians - abs(theta)) / env.theta_threshold_radians - 0.5
+    reward = r1 + r2
+    return reward
 
+
+def main():
+    dqn = DQN()
+    episodes = 400
+    print("Collecting Experience....")
+    reward_list = []
+    plt.ion()
+    fig, ax = plt.subplots()
+    for i in range(episodes):
+        state = env.reset()
+        ep_reward = 0
+        while True:
+            env.render()
+            action = dqn.choose_action(state)
+            next_state, _, done, info = env.step(action)
+            x, x_dot, theta, theta_dot = next_state
+            reward = reward_func(env, x, x_dot, theta, theta_dot)
+
+            dqn.store_transition(state, action, reward, next_state)
+            ep_reward += reward
+
+            if dqn.memory_counter >= MEMORY_CAPACITY:
+                dqn.learn()
+                if done:
+                    print("episode: {} , the episode reward is {}".format(i, round(ep_reward, 3)))
+            if done:
+                break
+            state = next_state
+        r = copy.copy(reward)
+        reward_list.append(r)
+        ax.set_xlim(0, 300)
+        # ax.cla()
+        ax.plot(reward_list, 'g-', label='total_loss')
+        plt.pause(0.001)
+
+
+if __name__ == '__main__':
+    main()
