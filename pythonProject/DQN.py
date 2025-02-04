@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import copy
 
 # hyper-parameters
-#Based on the paper
 NUM_EPISODES = 500
 DISCOUNT = GAMMA = 0.01
 EPISILO = 0.99
@@ -18,8 +17,8 @@ BATCH_SIZE = 64
 
 env = gym.make("gym_examples/DroneEnv")
 env = env.unwrapped
-NUM_ACTIONS = env.action_space.n
-NUM_STATES = env.observation_space.shape[0]
+NUM_ACTIONS = env.action_space
+NUM_STATES = env.observation_space
 
 class Net(nn.Module):
     """docstring for Net"""
