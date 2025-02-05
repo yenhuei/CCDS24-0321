@@ -9,12 +9,10 @@ from gym.envs.classic_control.EnvironmentGen import DroneEnv
 
 env = gym.make("DroneEnv-v0")
 env = env.unwrapped
+currentTask = 0
 
 while(1):
     userInput = input("Input Step Amount 0-999 ")
     reward, observation, info, currentTask =  env.step(int(userInput))
-
-    print("\nReward = ", reward)
-    print("Observation = ", observation)
-    print("Info = ", info)
-    print("Current Task = ", currentTask)
+    if currentTask == 4:
+        env.reset()
