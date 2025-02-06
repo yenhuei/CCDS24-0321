@@ -67,7 +67,6 @@ class DroneEnv(gym.Env):
         return observation, info
 
     def step(self, action):
-        print("Action is:", action)
         offload_percentage = float(action/1000)
         local_cycle_counts = (1-offload_percentage)*(self.cycle[self.currentTask])
         offload_data_size = offload_percentage*(self.data[self.currentTask])
@@ -91,8 +90,9 @@ class DroneEnv(gym.Env):
         if self.currentTask<3:
             self.currentTask += 1
         else:
-            self.reset()
+            observation = self._get_obs()
+            info = self._get_info()
+            self.currentTask+=1
 
-        observation = self._get_obs()
-        info = self._get_info()
-        return self.total_energy, observation, info, self.currentTask
+        # return self.total_energy, observation, info, self.currentTask
+        return [info], observation, info, self.currentTask

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import copy
 from gym.envs.classic_control.EnvironmentGen import DroneEnv
 from itertools import count
-
+import time
 
 
 # hyper-parameters
@@ -77,17 +77,17 @@ def select_action(state):
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
                     math.exp(-1. * steps_done / EPS_DECAY)
     steps_done += 1
-    if sample < eps_threshold:
+    if sample > eps_threshold:
         with torch.no_grad():
             # t.max(1) will return the largest column value of each row.
             # second column on max result is index of where max element was
             # found, so we pick action with the larger expected reward.
-            print("IM TRIGGERED")
+            # print("IM TRIGGERED")
             # print("PRINTING POLICY NET\n", policy_net(state).max(1).indices.view(1, 1))
             return policy_net(state).max(1).indices.view(1, 1)
     else:
-        return NUM_ACTIONS.sample()
-
+        # return NUM_ACTIONS.sample()
+        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 def optimize_model():
     if len(memory) < BATCH_SIZE:
         return
@@ -96,7 +96,7 @@ def optimize_model():
     # detailed explanation). This converts batch-array of Transitions
     # to Transition of batch-arrays.
     batch = Transition(*zip(*transitions))
-    print("Batch =" , batch)
+
 
     # Compute a mask of non-final states and concatenate the batch elements
     # (a final state would've been the one after which simulation ended)
@@ -106,7 +106,7 @@ def optimize_model():
                                                 if s is not None])
     state_batch = torch.cat(batch.state)
     action_batch = torch.cat(batch.action)
-    reward_batch = batch.reward
+    reward_batch = torch.cat(batch.reward)
 
     # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
     # columns of actions taken. These are the actions which would've been taken
@@ -142,6 +142,8 @@ else:
 
 for i_episode in range(num_episodes):
     # Initialize the environment and get its state
+    print("Episode ", i_episode)
+    # time.sleep(2)
     state, info = env.reset()
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     for t in count():
@@ -172,3 +174,5 @@ for i_episode in range(num_episodes):
             target_net_state_dict[key] = policy_net_state_dict[key]*UPDATE_RATE + target_net_state_dict[key]*(1-UPDATE_RATE)
         target_net.load_state_dict(target_net_state_dict)
 
+        if done:
+            break
