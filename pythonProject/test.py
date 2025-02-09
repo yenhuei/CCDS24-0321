@@ -18,6 +18,3 @@ while(1):
     reward, observation, info, currentTask =  env.step(int(userInput))
     if currentTask == 4:
         env.reset()
-
-    state = torch.tensor(observation, dtype=torch.uint32, device=device).unsqueeze(0)
-    print(state)

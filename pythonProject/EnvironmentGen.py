@@ -26,16 +26,10 @@ class DroneEnv(gym.Env):
     #Returns the amount of data size and cycle counts for each device's task
     def _get_obs(self):
         return [self.task[self.currentTask][0]]
-        # return {
-        #         "device_one": (self.task[0]),
-        #         "device_two": (self.task[1]),
-        #         "device_three": (self.task[2]),
-        #         "device_four": (self.task[3])
-        #     }
 
     #Returns the energy cost thus far
     def _get_info(self):
-        return self.total_energy#, self.local_energy, self.uplink_energy)
+        return self.total_energy#=, self.local_energy, self.uplink_energy)
 
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
@@ -51,11 +45,11 @@ class DroneEnv(gym.Env):
         self.cycle = list()
         self.task = list()
         for i in range(self.devices):
-            data = round(data_percentage[i] * 200 + 300)  # kbits
-            cycle = data + 600  # megacycles
+            data = round(data_percentage[i] * 200 + 300)*10e3 # kbits
+            cycle = (data)*10e3  # megacycles
             self.data.append(data)
             self.cycle.append(cycle)
-            self.task.append((float(data), float(cycle)))
+            self.task.append((data,cycle))
 
         observation = self._get_obs()
         info = self._get_info()
@@ -72,27 +66,38 @@ class DroneEnv(gym.Env):
         offload_data_size = offload_percentage*(self.data[self.currentTask])
         self.task[self.currentTask] = (0,0)
         self.local_energy = sm.local_compute_energy(local_cycle_counts)
-        path_loss = sm.path_loss()
+        path_loss = sm.path_loss(offload_data_size)
         gain = sm.channel_gain(path_loss)
         upload_rate = sm.uplink_rate(gain)
         upload_time = sm.transmit_time(offload_data_size, upload_rate)
         self.uplink_energy = sm.uplink_energy(upload_time)
-        self.total_energy -= self.local_energy-self.uplink_energy
-        observation = self._get_obs()
-        info = self._get_info()
+        self.total_energy += (self.local_energy+self.uplink_energy)
 
+        local_compute_time = sm.local_compute_time(local_cycle_counts)
+        offload_compute_time = sm.offload_compute_time(offload_data_size*10e3)
+        total_time = max(local_compute_time , offload_compute_time + upload_time)
 
-        print("\nReward = ", self.total_energy)
-        print("Observation = ", observation)
-        print("Info = ", info)
-        print("Current Task = ", self.currentTask)
+        full_local_time = sm.local_compute_time(self.data[self.currentTask]*10e3)
+        full_offload_time = sm.offload_compute_time(self.data[self.currentTask]*10e3) + transmit_time(self.data[self.currentTask], upload_rate)
+        min_binary_offloading_time = min(full_local_time, full_offload_time)
+
+        print("Total Time = ", total_time)
+        print("Minimum Binary Offload Time = ", min_binary_offloading_time)
 
         if self.currentTask<3:
             self.currentTask += 1
+            observation = self._get_obs()
+            info = self._get_info()
         else:
             observation = self._get_obs()
             info = self._get_info()
             self.currentTask+=1
 
+        print("\nReward = ", self.total_energy)
+        print("Action = ", action)
+        # print("Observation = ", observation)
+        # print("Info = ", info)
+        # print("Current Task = ", self.currentTask)
+
         # return self.total_energy, observation, info, self.currentTask
-        return [info], observation, info, self.currentTask
+        return [-info], observation, info, self.currentTask

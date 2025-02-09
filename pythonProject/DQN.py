@@ -7,6 +7,7 @@ import torch.optim as optim
 from collections import namedtuple, deque
 import numpy as np
 import gym
+import matplotlib
 import matplotlib.pyplot as plt
 import copy
 from gym.envs.classic_control.EnvironmentGen import DroneEnv
@@ -15,7 +16,7 @@ import time
 
 
 # hyper-parameters
-NUM_EPISODES = 500
+NUM_EPISODES = 1024
 DISCOUNT = GAMMA = 0.01
 EPS_START = 0.99
 EPS_END = 0.05
@@ -71,6 +72,38 @@ memory = ReplayMemory(MEMORY_CAPACITY)
 
 steps_done = 0
 
+episode_durations = []
+# set up matplotlib
+is_ipython = 'inline' in matplotlib.get_backend()
+if is_ipython:
+    from IPython import display
+
+plt.ion()
+
+def plot_durations(show_result=False):
+    plt.figure(1)
+    durations_t = torch.tensor(episode_durations, dtype=torch.float)
+    if show_result:
+        plt.title('Result')
+    else:
+        plt.clf()
+        plt.title('Training...')
+    plt.xlabel('Episode')
+    plt.ylabel('Energy/kJ')
+    plt.plot(durations_t.numpy())
+    # Take 100 episode averages and plot them too
+    if len(durations_t) >= 100:
+        means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
+        means = torch.cat((torch.zeros(99), means))
+        plt.plot(means.numpy())
+
+    plt.pause(0.001)  # pause a bit so that plots are updated
+    if is_ipython:
+        if not show_result:
+            display.display(plt.gcf())
+            display.clear_output(wait=True)
+        else:
+            display.display(plt.gcf())
 def select_action(state):
     global steps_done
     sample = random.random()
@@ -96,7 +129,6 @@ def optimize_model():
     # detailed explanation). This converts batch-array of Transitions
     # to Transition of batch-arrays.
     batch = Transition(*zip(*transitions))
-
 
     # Compute a mask of non-final states and concatenate the batch elements
     # (a final state would've been the one after which simulation ended)
@@ -136,9 +168,9 @@ def optimize_model():
     optimizer.step()
 
 if torch.cuda.is_available() or torch.backends.mps.is_available():
-    num_episodes = 600
+    num_episodes = NUM_EPISODES
 else:
-    num_episodes = 50
+    num_episodes = 256
 
 for i_episode in range(num_episodes):
     # Initialize the environment and get its state
@@ -175,4 +207,12 @@ for i_episode in range(num_episodes):
         target_net.load_state_dict(target_net_state_dict)
 
         if done:
+            episode_durations.append(reward)
+            plot_durations()
             break
+
+
+print('Complete')
+plot_durations(show_result=True)
+plt.ioff()
+plt.show()

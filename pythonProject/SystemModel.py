@@ -1,19 +1,23 @@
 import math
 
-bandwidth = 550#0.55 THz
-gain_receiver = gain_transmitter = 20 #20 dBi
-k_abs = 6.7141 / 10000
-transmit_power =  0.5 #500mW in Watts
-f_uav = 5000000 #5 GHz in THz
-noise = 1 #Unknown
-distance = 20 #20m
-speed_of_light = 299792458 #m/s
-k_compute = math.pow(10,-25)
+bandwidth = 0.8e12#0.8=4x0.2 or 0.55 THz
+gain_receiver = gain_transmitter = 20 #20 dBi find out about dB, assert
+k_abs = 6.7141e-4
+transmit_power =  30 #500mW in Watts in dBm for transmit power range [0,10] db.
+f_uav = 5e9 #5 GHz
+f_mec = 8e9 #8 GHz
+noise = -110 #Unknown also in dBm
+distance = 30 #20m up to 30m
+speed_of_light = 3e8 #m/s
+k_compute = 10e-26
 
 
 def uplink_rate(channel_gain):
-    rate = gain_receiver*gain_transmitter*transmit_power*math.pow(channel_gain,2)
-    rate = rate/noise/bandwidth
+    gR = gT = db_to_linear(gain_transmitter)
+    transmit_linear = db_to_linear(transmit_power)
+    rate = gR*gT*transmit_linear*math.pow(channel_gain,2)
+    noise_linear = db_to_linear(noise)
+    rate = rate/noise_linear/bandwidth
     rate = 1 + rate
     rate = bandwidth*math.log(rate,2)
 
@@ -31,21 +35,37 @@ def channel_gain(path_loss):
     # print("Channel Gain = ", gain)
     return gain
 
-def path_loss():
-    PL = 4*math.pi*bandwidth*distance/speed_of_light
-    PL = pow(PL,2)
-    PL = PL*pow(math.e, k_abs*bandwidth*distance)
-
+def path_loss(data):
+    absorption_loss= 4*math.pi*bandwidth*distance/speed_of_light
+    absorption_loss = pow(absorption_loss,2)
+    spread_loss = pow(math.e, k_abs*distance)
+    PL = absorption_loss*spread_loss
     # print("Pathloss = ", PL)
     return PL
 
 def local_compute_energy(cycle):
-    energy = k_compute*math.pow(f_uav,2)*cycle*1000000
-    print("Local Energy = ", energy)
+    energy = k_compute*math.pow(f_uav,2)*cycle
+    # print("Local Energy = ", energy)
     return energy
 
 def uplink_energy(time):
     energy = transmit_power*time
 
-    print("Uplink Energy = ", energy)
+    # print("Uplink Energy = ", energy)
     return energy
+
+def db_to_linear(db:float):
+    ratio = db/10
+    linear = pow(10, ratio)
+
+    return linear
+
+def local_compute_time(cycle):
+    time = (cycle)/f_uav
+    return time
+
+def offload_compute_time(cycle):
+    time = (cycle)/f_mec
+    return time
+
+# channel_gain(path_loss(3480000))
