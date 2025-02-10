@@ -4,7 +4,7 @@ from SystemModel import uplink_rate, transmit_time, channel_gain
 from gym import spaces
 import numpy as np
 from gym.envs.registration import register
-
+import math
 
 
 class DroneEnv(gym.Env):
@@ -83,6 +83,9 @@ class DroneEnv(gym.Env):
 
         print("Total Time = ", total_time)
         print("Minimum Binary Offload Time = ", min_binary_offloading_time)
+        if total_time >= min_binary_offloading_time:
+            self.total_energy *= 10
+            self.currentTask=3
 
         if self.currentTask<3:
             self.currentTask += 1
@@ -94,7 +97,7 @@ class DroneEnv(gym.Env):
             self.currentTask+=1
 
         print("\nReward = ", self.total_energy)
-        print("Action = ", action)
+        # print("Action = ", action)
         # print("Observation = ", observation)
         # print("Info = ", info)
         # print("Current Task = ", self.currentTask)

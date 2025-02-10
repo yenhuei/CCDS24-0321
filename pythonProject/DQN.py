@@ -112,11 +112,7 @@ def select_action(state):
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
-            # t.max(1) will return the largest column value of each row.
-            # second column on max result is index of where max element was
-            # found, so we pick action with the larger expected reward.
-            # print("IM TRIGGERED")
-            # print("PRINTING POLICY NET\n", policy_net(state).max(1).indices.view(1, 1))
+            #Input state and return max reward step returned by model
             return policy_net(state).max(1).indices.view(1, 1)
     else:
         # return NUM_ACTIONS.sample()
@@ -174,8 +170,7 @@ else:
 
 for i_episode in range(num_episodes):
     # Initialize the environment and get its state
-    print("Episode ", i_episode)
-    # time.sleep(2)
+    # print("Episode ", i_episode)
     state, info = env.reset()
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     for t in count():
