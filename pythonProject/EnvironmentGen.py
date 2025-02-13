@@ -6,6 +6,7 @@ import numpy as np
 from gym.envs.registration import register
 import math
 
+NUM_ACTIONS = 1000
 
 class DroneEnv(gym.Env):
 
@@ -18,10 +19,11 @@ class DroneEnv(gym.Env):
         self.local_energy = 0
         self.uplink_energy = 0
         self.currentTask = 0
+        self.power = 0
 
         # One system with four separate device/tasks with unique data size and cycle counts
         self.observation_space = spaces.Discrete(1)
-        self.action_space = spaces.Discrete(1000) #0.0 to 99.9
+        self.action_space = spaces.Discrete(NUM_ACTIONS) #0.0 to 99.9
 
     #Returns the amount of data size and cycle counts for each device's task
     def _get_obs(self):
@@ -38,6 +40,7 @@ class DroneEnv(gym.Env):
         self.total_energy = 0
         self.local_energy = 0
         self.uplink_energy = 0
+        self.power = 0
 
         #Reset task data and cycle
         data_percentage = (np.random.rand(1, 4))[0]
@@ -53,15 +56,15 @@ class DroneEnv(gym.Env):
 
         observation = self._get_obs()
         info = self._get_info()
-        print("\nReward = ", self.total_energy)
-        print("Observation = ", observation)
-        print("Info = ", info)
-        print("Current Task = ", self.currentTask)
+        # print("\nReward = ", self.total_energy)
+        # print("Observation = ", observation)
+        # print("Info = ", info)
+        # print("Current Task = ", self.currentTask)
 
         return observation, info
 
     def step(self, action):
-        offload_percentage = float(action/1000)
+        offload_percentage = float(action/NUM_ACTIONS)
         local_cycle_counts = (1-offload_percentage)*(self.cycle[self.currentTask])
         offload_data_size = offload_percentage*(self.data[self.currentTask])
         self.task[self.currentTask] = (0,0)
@@ -73,19 +76,30 @@ class DroneEnv(gym.Env):
         self.uplink_energy = sm.uplink_energy(upload_time)
         self.total_energy += (self.local_energy+self.uplink_energy)
 
+        #Finding the max time taken to compute locally and to offload and compute
         local_compute_time = sm.local_compute_time(local_cycle_counts)
+        print('Local time = ' ,local_compute_time)
         offload_compute_time = sm.offload_compute_time(offload_data_size*10e3)
+        print('Offload time = ', offload_compute_time)
         total_time = max(local_compute_time , offload_compute_time + upload_time)
 
+        # Finding the minimum energy between full offloading and no offloading
+        full_local_energy = sm.local_compute_energy(self.cycle[self.currentTask])
+        path_loss = sm.path_loss(self.data[self.currentTask])
+        gain = sm.channel_gain(path_loss)
+        upload_rate = sm.uplink_rate(gain)
+        upload_time = sm.transmit_time(self.data[self.currentTask], upload_rate)
+        full_offload_energy = sm.uplink_energy(upload_time)
+        min_binary_energy = min(full_local_energy, full_offload_energy)
+
+        #Finding the minimum time between full offloading and no offloading
         full_local_time = sm.local_compute_time(self.data[self.currentTask]*10e3)
         full_offload_time = sm.offload_compute_time(self.data[self.currentTask]*10e3) + transmit_time(self.data[self.currentTask], upload_rate)
         min_binary_offloading_time = min(full_local_time, full_offload_time)
 
-        print("Total Time = ", total_time)
-        print("Minimum Binary Offload Time = ", min_binary_offloading_time)
-        if total_time >= min_binary_offloading_time:
-            self.total_energy *= 10
-            self.currentTask=3
+        energy_difference = self.total_energy - min_binary_energy
+        time_difference = total_time - min_binary_offloading_time
+        time_ratio = total_time/min_binary_offloading_time
 
         if self.currentTask<3:
             self.currentTask += 1
@@ -96,8 +110,11 @@ class DroneEnv(gym.Env):
             info = self._get_info()
             self.currentTask+=1
 
-        print("\nReward = ", self.total_energy)
-        # print("Action = ", action)
+        print("\nEnergy = ", self.total_energy)
+        print("Action = ", action)
+        # print("Energy Used Local= ", total_time)
+        # print("Energy Used Off= ", min_binary_offloading_time)
+        # print("Time Ratio = ", time_ratio)
         # print("Observation = ", observation)
         # print("Info = ", info)
         # print("Current Task = ", self.currentTask)

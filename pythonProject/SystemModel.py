@@ -3,11 +3,11 @@ import math
 bandwidth = 0.8e12#0.8=4x0.2 or 0.55 THz
 gain_receiver = gain_transmitter = 20 #20 dBi find out about dB, assert
 k_abs = 6.7141e-4
-transmit_power =  30 #500mW in Watts in dBm for transmit power range [0,10] db.
+transmit_power =  5 #500mW in Watts in dBm for transmit power range [0,10] db.
 f_uav = 5e9 #5 GHz
 f_mec = 8e9 #8 GHz
 noise = -110 #Unknown also in dBm
-distance = 30 #20m up to 30m
+distance = 52 #20m - 30m height, for (x,y,z)=(30,30,30) then absolute distance is approx. 51.962
 speed_of_light = 3e8 #m/s
 k_compute = 10e-26
 
@@ -24,6 +24,7 @@ def uplink_rate(channel_gain):
     # print("Uplink Rate = ",rate)
     return rate
 def transmit_time(data,rate):
+    assert rate != 0
     time = data/rate
 
     # print("Tansmit Time = ", time)
@@ -68,4 +69,12 @@ def offload_compute_time(cycle):
     time = (cycle)/f_mec
     return time
 
-# channel_gain(path_loss(3480000))
+# path_loss = path_loss(3e6)
+# gain = channel_gain(path_loss)
+# upload_rate = uplink_rate(gain)
+# upload_time = transmit_time(3e6, upload_rate)
+# full_offload_energy = uplink_energy(upload_time)
+#
+# print(full_offload_energy)
+#
+# print(math.sqrt(pow(30,2)*3))

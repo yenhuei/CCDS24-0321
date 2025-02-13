@@ -16,5 +16,11 @@ currentTask = 0
 while(1):
     userInput = input("Input Step Amount 0-999 ")
     reward, observation, info, currentTask =  env.step(int(userInput))
-    if currentTask == 4:
+    if currentTask == 1:
         env.reset()
+
+    print("Reward = ", reward)
+    # print("Action = ", action)
+    print("Observation = ", observation)
+    print("Info = ", info)
+    print("Current Task = ", currentTask)

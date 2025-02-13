@@ -21,8 +21,8 @@ DISCOUNT = GAMMA = 0.01
 EPS_START = 0.99
 EPS_END = 0.05
 EPS_DECAY = 1000
-LR = 0.005
-UPDATE_RATE = 0.001
+LR = 1e-4
+UPDATE_RATE = 0.006 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
 UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1000
 BATCH_SIZE = 64
@@ -54,12 +54,14 @@ class DQN(nn.Module):
         super(DQN, self).__init__()
         self.layer1 = nn.Linear(n_observations, 128)
         self.layer2 = nn.Linear(128,128)
-        self.layer3 = nn.Linear(128, n_actions)
+        # self.layer3 = nn.Linear(128, 64)
+        self.layer4 = nn.Linear(128, n_actions)
 
     def forward(self, x):
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
-        return self.layer3(x)
+        # x = F.relu(self.layer3(x))
+        return self.layer4(x)
 
 
 state, info = env.reset()
