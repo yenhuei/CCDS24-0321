@@ -17,7 +17,7 @@ import time
 #Saving run data
 energyCostList = []
 dataSizeList = []
-runName = 'DDQN History 1e-2'
+runName = 'DDQN 10e-2'
 
 # hyper-parameters
 NUM_EPISODES = 600
@@ -25,7 +25,7 @@ DISCOUNT = GAMMA = 0.001
 EPS_START = 0.99
 EPS_END = 0.05
 EPS_DECAY = 1000
-LR = 1e-2
+LR = 10e-2
 UPDATE_RATE = 1e-3 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
 UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1024*5
@@ -176,6 +176,7 @@ for i_episode in range(num_episodes):
     totalReward = 0
     totalData = 0
     state, info = env.reset()
+    dataSizeList.append(str(state))
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     for t in count():
         action = select_action(state)
@@ -188,7 +189,6 @@ for i_episode in range(num_episodes):
         if terminated:
             next_state = None
             energyCostList.append(round(totalReward))
-            dataSizeList.append(totalData)
         else:
             next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
