@@ -74,7 +74,11 @@ def offload_compute_time(cycle):
 # upload_rate = uplink_rate(gain)
 # upload_time = transmit_time(3e6, upload_rate)
 # full_offload_energy = uplink_energy(upload_time)
+# full_local_energy = local_compute_energy(3e9)
 #
-# print(full_offload_energy)
 #
-# print(math.sqrt(pow(30,2)*3))
+#
+# print('Full Offloading Energy Cost = ', full_offload_energy)
+# print('Full Offloading Time Cost = ', upload_time+offload_compute_time(3e9), '\n')
+# print('Full Local Compute Energy Cost = ', full_local_energy)
+# print('Full Local Compute Time Cost = ', local_compute_time(3e9))
