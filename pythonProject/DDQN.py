@@ -18,6 +18,7 @@ import time
 energyCostList = []
 dataSizeList = []
 runName = 'DDQN 10e-2'
+DQN = False
 
 # hyper-parameters
 NUM_EPISODES = 600
@@ -28,7 +29,7 @@ EPS_DECAY = 1000
 LR = 10e-2
 UPDATE_RATE = 1e-3 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
 UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
-MEMORY_CAPACITY = 1024*5
+MEMORY_CAPACITY = 1024*8
 BATCH_SIZE = 128
 n_actions = 100
 n_obs = 10
@@ -138,22 +139,23 @@ def optimize_model():
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
 
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken. These are the actions which would've been taken
-    # for each batch state according to policy_net
     state_action_values = policy_net(state_batch).gather(1, action_batch)
 
-    # Compute V(s_{t+1}) for all next states.
-    # Expected values of actions for non_final_next_states are computed based
-    # on the "older" target_net; selecting their best reward with max(1).values
-    # This is merged based on the mask, such that we'll have either the expected
-    # state value or 0 in case the state was final.
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    with torch.no_grad():
-        next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
-    # Compute the expected Q values
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+    if DQN == True:
+        next_state_values = torch.zeros(BATCH_SIZE, device=device)
+        with torch.no_grad():
+            next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
 
+
+    else:
+        next_state_values = torch.zeros(BATCH_SIZE, device=device)
+        with torch.no_grad():
+            policy_q_values = policy_net(non_final_next_states)
+            target_q_values = target_net(non_final_next_states)
+            next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
+
+    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+    # print("expected_state_action_values = ", expected_state_action_values)
     # Compute loss
     criterion = nn.MSELoss() #nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
