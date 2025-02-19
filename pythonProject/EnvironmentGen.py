@@ -123,5 +123,5 @@ class DroneEnv(gym.Env):
         # print("Energy/Bit =  " , round((-info/self.total_data*10e3)/self.total_time, 5)) #Power/kBits
         # return [round((-info/self.total_data*10e3)/self.total_time, 5)], observation, info, self.currentTask, self.data[self.currentTask-1]
 
-        print("Energy/kBits =  ", (-info / self.total_data * 10e3))
+        # print("Energy/kBits =  ", (-info / self.total_data * 10e3))
         return [(-info / self.total_data * 10e3)], observation, info, self.currentTask,self.data[self.currentTask - 1]

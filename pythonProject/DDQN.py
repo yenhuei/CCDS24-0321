@@ -13,11 +13,11 @@ import copy
 from gym.envs.classic_control.EnvironmentGen import DroneEnv
 from itertools import count
 import time
+import torch.utils.tensorboard
+from torch.utils.tensorboard import SummaryWriter
 
-#Saving run data
-energyCostList = []
-dataSizeList = []
-runName = 'DDQN 10e-2'
+writer = SummaryWriter('runs/DDQN')
+runName = 'DDQN 20e-2'
 DQN = False
 
 # hyper-parameters
@@ -26,7 +26,7 @@ DISCOUNT = GAMMA = 0.001
 EPS_START = 0.99
 EPS_END = 0.05
 EPS_DECAY = 1000
-LR = 10e-2
+LR = 20e-2
 UPDATE_RATE = 1e-3 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
 UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1024*8
@@ -90,6 +90,7 @@ if is_ipython:
 plt.ion()
 
 def plot_durations(show_result=False):
+    global durations_t
     plt.figure(1)
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
     if show_result:
@@ -99,12 +100,12 @@ def plot_durations(show_result=False):
         plt.title('Training...')
     plt.xlabel('Episode')
     plt.ylabel('Energy/kBits')
-    plt.plot(durations_t.numpy())
+    plt.plot(durations_t.numpy(), label="Reward")
     # Take 100 episode averages and plot them too
-    if len(durations_t) >= BATCH_SIZE:
-        means = durations_t.unfold(0, BATCH_SIZE, 1).mean(1).view(-1)
-        means = torch.cat((torch.zeros(BATCH_SIZE-1), means))
-        plt.plot(means.numpy())
+    # if len(durations_t) >= BATCH_SIZE:
+    #     means = durations_t.unfold(0, BATCH_SIZE, 1).mean(1).view(-1)
+    #     means = torch.cat((torch.zeros(BATCH_SIZE-1), means))
+    #     plt.plot(means.numpy())
 
     plt.pause(0.001)  # pause a bit so that plots are updated
     if is_ipython:
@@ -113,6 +114,7 @@ def plot_durations(show_result=False):
             display.clear_output(wait=True)
         else:
             display.display(plt.gcf())
+
 def select_action(state):
     global steps_done
     sample = random.random()
@@ -126,6 +128,7 @@ def select_action(state):
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 
 def optimize_model():
+    global steps_done, writer, loss
     if len(memory) < BATCH_SIZE:
         return
     transitions = memory.sample(BATCH_SIZE)
@@ -155,10 +158,10 @@ def optimize_model():
             next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
 
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
-    # print("expected_state_action_values = ", expected_state_action_values)
     # Compute loss
     criterion = nn.MSELoss() #nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+    writer.add_scalar("Training Loss", loss.item(), global_step=steps_done)
 
     # Optimize the model
     optimizer.zero_grad()
@@ -174,23 +177,17 @@ else:
 
 for i_episode in range(num_episodes):
     # Initialize the environment and get its state
-    # print("Episode ", i_episode)
-    totalReward = 0
-    totalData = 0
     state, info = env.reset()
-    dataSizeList.append(str(state))
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     for t in count():
         action = select_action(state)
         reward, observation, info, currentTask, data = env.step(action)
-        totalReward += reward[0]
         reward = torch.tensor(reward, device=device)
-        totalData += data
         done = terminated = currentTask==10
 
         if terminated:
             next_state = None
-            energyCostList.append(round(totalReward))
+            writer.add_scalar("Training Reward Value", i_episode, global_step = i_episode)
         else:
             next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
@@ -215,12 +212,6 @@ for i_episode in range(num_episodes):
             episode_durations.append(reward)
             plot_durations()
             break
-
-
-f = open(runName + ' History.txt', 'w')
-myString = str(dataSizeList) + '\n\n' + str(energyCostList)
-f.write(myString)
-f.close()
 
 print('Complete')
 plot_durations(show_result=True)
