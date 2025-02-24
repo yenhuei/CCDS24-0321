@@ -1,13 +1,14 @@
 import math
 
-bandwidth = 0.8e12#0.8=4x0.2 or 0.55 THz
+bandwidth = 50e9#bandwidth about 50-60 GHz
+carrier_frequency = 0.40e12#0.40 THz carrier frequency based on Distance-Aware Bandwidth-Adaptive Resource Allocation for Wireless Systems in the Terahertz Band
 gain_receiver = gain_transmitter = 20 #20 dBi find out about dB, assert
 k_abs = 6.7141e-4
-transmit_power =  5 #500mW in Watts in dBm for transmit power range [0,10] db.
+transmit_power =  5 #500mW in Watts in dBm for transmit power range [0,10] dBm.
 f_uav = 5e9 #5 GHz
 f_mec = 8e9 #8 GHz
-noise = -110 #Unknown also in dBm
-distance = 52 #20m - 30m height, for (x,y,z)=(30,30,30) then absolute distance is approx. 51.962
+noise = -110 #-110 dBm
+distance = 42 #20m - 30m height, for (x,y,z)=(30,20,20) then absolute distance is approx. 41.231
 speed_of_light = 3e8 #m/s
 k_compute = 10e-26
 
@@ -37,7 +38,7 @@ def channel_gain(path_loss):
     return gain
 
 def path_loss(data):
-    absorption_loss= 4*math.pi*bandwidth*distance/speed_of_light
+    absorption_loss= 4*math.pi*carrier_frequency*distance/speed_of_light
     absorption_loss = pow(absorption_loss,2)
     spread_loss = pow(math.e, k_abs*distance)
     PL = absorption_loss*spread_loss
@@ -82,3 +83,5 @@ def offload_compute_time(cycle):
 # print('Full Offloading Time Cost = ', upload_time+offload_compute_time(3e9), '\n')
 # print('Full Local Compute Energy Cost = ', full_local_energy)
 # print('Full Local Compute Time Cost = ', local_compute_time(3e9))
+
+#tensorboard --logdir=C:\Users\TYH\PycharmProjects\pythonProject\.venv\runs
