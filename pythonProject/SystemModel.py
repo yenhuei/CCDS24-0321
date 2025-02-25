@@ -8,7 +8,7 @@ transmit_power =  5 #500mW in Watts in dBm for transmit power range [0,10] dBm.
 f_uav = 5e9 #5 GHz
 f_mec = 8e9 #8 GHz
 noise = -110 #-110 dBm
-distance = 42 #20m - 30m height, for (x,y,z)=(30,20,20) then absolute distance is approx. 41.231
+distance = 41 #20m - 30m height, for (x,y,z)=(30,20,20) then absolute distance is approx. 41.231
 speed_of_light = 3e8 #m/s
 k_compute = 10e-26
 

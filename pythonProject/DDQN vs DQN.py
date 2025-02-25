@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter('runs')
 assert(writer != None)
 runName = 'DDQN vs DQN'
-DQN = False
+DQN = True
 result1 = []
 result2 = []
 result3 = []
@@ -159,10 +159,10 @@ def optimize_model():
     criterion = nn.MSELoss() #nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
     if runNumber == 0:
-        writer.add_scalar("Loss/DDQN", loss, global_step=steps_done%6001)
+        # writer.add_scalar("Loss/DQN", loss, global_step=steps_done%6001)
         loss1.append(loss)
     if runNumber == 1:
-        writer.add_scalar("Loss/DQN", loss, global_step=steps_done%6001)
+        # writer.add_scalar("Loss/DDQN", loss, global_step=steps_done%6001)
         loss2.append(loss)
     # Optimize the model
     optimizer.zero_grad()
@@ -189,7 +189,7 @@ for runNumber in range(2):
 
     optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
     if runNumber == 1:
-        DQN = True
+        DQN = False
         optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
 
     for i_episode in range(num_episodes):
@@ -206,10 +206,10 @@ for runNumber in range(2):
                 next_state = None
                 if runNumber == 0:
                     result1.append(-reward)
-                    writer.add_scalar(f"Cost/DDQN", -reward, global_step=i_episode)
+                    # writer.add_scalar(f"Cost/DQN", -reward, global_step=i_episode)
                 if runNumber == 1:
                     result2.append(-reward)
-                    writer.add_scalar(f"Cost/DQN", -reward, global_step=i_episode)
+                    # writer.add_scalar(f"Cost/DDQN", -reward, global_step=i_episode)
             else:
                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
@@ -237,34 +237,24 @@ for runNumber in range(2):
 
 print('Complete')
 
-# for epoch in range(len(result1)):
-#     writer.add_scalars(f"Energy/kbit for DQN with Different Learning Rates",
-#                        {
-#                            f'DQN LR=0.05/ Energy/kbit':result1[epoch],
-#                            f'DQN LR=0.10/ Energy/kbit': result2[epoch],
-#                            f'DQN LR=0.20/ Energy/kbit': result3[epoch],
-#                        }, epoch+1)
+for epoch in range(len(result1)):
+    writer.add_scalars(f"Energy per kbit for DQN vs DDQN",
+                       {
+                           f'DQN LR=0.10/':result1[epoch],
+                           f'DDQN LR=0.10/': result2[epoch],
+                       }, epoch+1)
 
-# for jump in range(0, len(loss1), 10):
-#     loss1[int(jump/10)] = sum(loss1[jump:jump + 10]) / 10
-#     loss2[int(jump/10)] = sum(loss2[jump:jump + 10]) / 10
-#     loss3[int(jump/10)] = sum(loss3[jump:jump + 10]) / 10
-# loss1 = loss1[:600]
-# loss2 = loss2[:600]
-# loss3 = loss3[:600]
-
-# for epoch in range(len(loss1)):
-#     writer.add_scalars("MSE Training Loss for DQN with Different Learning Rates",
-#                        {
-#                            'DQN LR=0.05/loss': loss1[epoch],
-#                            'DQN LR=0.10/loss': loss2[epoch],
-#                            'DQN LR=0.20/loss': loss3[epoch],
-#                        }, epoch+1)
+for epoch in range(len(loss1)):
+    writer.add_scalars("MSE Training Loss for DQN vs DDQN",
+                       {
+                           'DQN LR=0.10': loss1[epoch],
+                           'DDQN LR=0.10': loss2[epoch],
+                       }, epoch)
 plot_durations(show_result=True)
 
 plt.ioff()
-plt.plot(-durations_t.numpy(), label="DDQN")
-plt.plot(-durations_t2.numpy(), label="DQN")
+plt.plot(-durations_t.numpy(), label="DQN")
+plt.plot(-durations_t2.numpy(), label="DDQN")
 
 plt.legend()
 plt.show()

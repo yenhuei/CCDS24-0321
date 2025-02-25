@@ -150,7 +150,7 @@ for i_episode in range(num_episodes):
         if terminated:
             next_state = None
             result1.append(-reward)
-            writer.add_scalar(f"Cost/Energy-per-kbit for DQN LR=0.10 (without Target Network)", -reward, global_step=i_episode)
+            writer.add_scalar(f"Cost/Energy-per-kbit for DQN LR=0.10 (without Target Network)", -reward, global_step=i_episode+1)
         else:
             next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
