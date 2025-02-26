@@ -1,16 +1,16 @@
 import math
 
-bandwidth = 50e9#bandwidth about 50-60 GHz
-carrier_frequency = 0.40e12#0.40 THz carrier frequency based on Distance-Aware Bandwidth-Adaptive Resource Allocation for Wireless Systems in the Terahertz Band
+bandwidth = 50e9 #bandwidth about 50-60 GHz
+carrier_frequency = 0.55e12 #At 41m, total usable Bandwidth is 0.06-0.40 THz.
 gain_receiver = gain_transmitter = 20 #20 dBi find out about dB, assert
 k_abs = 6.7141e-4
-transmit_power =  5 #500mW in Watts in dBm for transmit power range [0,10] dBm.
-f_uav = 5e9 #5 GHz
-f_mec = 8e9 #8 GHz
+transmit_power =  30 #1 Watt
+f_uav = 10e9 #10 GHz
+f_mec = 10e9 #10 GHz
 noise = -110 #-110 dBm
-distance = 41 #20m - 30m height, for (x,y,z)=(30,20,20) then absolute distance is approx. 41.231
+distance = 41 #for (x,y,z)=(sqrt(300), sqrt(300), 30) then absolute distance is approx. 41m
 speed_of_light = 3e8 #m/s
-k_compute = 10e-26
+k_compute = 10e-28
 
 
 def uplink_rate(channel_gain):

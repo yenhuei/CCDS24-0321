@@ -13,7 +13,7 @@ import gym
 import matplotlib
 import matplotlib.pyplot as plt
 import copy
-from gym.envs.classic_control.EnvironmentGen import DroneEnv
+from gym.envs.classic_control.EnvironmentGen import DroneEnv, NUM_DEVICES
 from itertools import count
 import time
 import torch.utils.tensorboard
@@ -22,7 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 writer = SummaryWriter('runs')
 assert(writer != None)
 runName = 'DQN with Different LR'
-DQN = True
+DQN = False
 result1 = []
 result2 = []
 result3 = []
@@ -44,7 +44,7 @@ UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1024*8
 BATCH_SIZE = 128
 n_actions = 100
-n_obs = 10
+n_obs = NUM_DEVICES
 
 env = gym.make("DroneEnv-v0")
 env = env.unwrapped
@@ -99,15 +99,8 @@ if is_ipython:
 plt.ion()
 
 def plot_durations(show_result=False):
-    global durations_t, durations_t2, durations_t3
+    global durations_t, durations_t2, durations_t3, runNumber
     plt.figure(1)
-    if runNumber==0:
-        durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    elif runNumber == 1:
-        durations_t2 = torch.tensor(episode_durations, dtype=torch.float)
-    elif runNumber == 2:
-        durations_t3 = torch.tensor(episode_durations, dtype=torch.float)
-
     if show_result:
         plt.title('Result of '+ runName)
     else:
@@ -116,13 +109,25 @@ def plot_durations(show_result=False):
     plt.xlabel('Episode')
     plt.ylabel('Energy/kBits')
 
+    if runNumber==0:
+        durations_t = torch.tensor(episode_durations, dtype=torch.float)
+        # plt.plot(-durations_t.numpy(), label='LR=0.05')
+    elif runNumber == 1:
+        durations_t2 = torch.tensor(episode_durations, dtype=torch.float)
+        # plt.plot(-durations_t.numpy(), label='LR=0.05')
+        # plt.plot(-durations_t2.numpy(), label='LR=0.10')
+    elif runNumber == 2:
+        durations_t3 = torch.tensor(episode_durations, dtype=torch.float)
+        # plt.plot(-durations_t.numpy(), label='LR=0.05')
+        # plt.plot(-durations_t2.numpy(), label='LR=0.10')
+        # plt.plot(-durations_t3.numpy(), label='LR=0.20')
 
-    #plt.pause(0.001)  # pause a bit so that plots are updated
+    plt.pause(0.001)  # pause a bit so that plots are updated
     if is_ipython:
         if not show_result:
-            pass
-            # display.display(plt.gcf())
-            # display.clear_output(wait=True)
+            # pass
+            display.display(plt.gcf())
+            display.clear_output(wait=True)
         else:
             display.display(plt.gcf())
 
@@ -142,25 +147,24 @@ def optimize_model():
     reward_batch = torch.cat(batch.reward)
 
     state_action_values = policy_net(state_batch).gather(1, action_batch)
-
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     with torch.no_grad():
         next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
 
-
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
     # Compute loss
-    criterion = nn.MSELoss() #nn.SmoothL1Loss()
+    criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
     if runNumber == 0:
-        # writer.add_scalar("Loss/Training Loss for DQN LR=0.05", loss, global_step=steps_done%6001)
+        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.05", loss, global_step=steps_done%6001)
         loss1.append(loss)
-    if runNumber == 1:
-        # writer.add_scalar("Loss/Training Loss for DQN LR=0.10", loss, global_step=steps_done%6001)
+    elif runNumber == 1:
+        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.10", loss, global_step=steps_done%6001)
         loss2.append(loss)
     elif runNumber == 2:
-        # writer.add_scalar("Loss/Training Loss for DQN LR=0.20", loss, global_step=steps_done%6001)
+        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.20", loss, global_step=steps_done%6001)
         loss3.append(loss)
+
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
@@ -175,7 +179,6 @@ else:
 
 
 for runNumber in range(3):
-    print('Complete')
     state, info = env.reset()
     policy_net = DQN(n_actions, n_obs).to(device)
     target_net = DQN(n_actions, n_obs).to(device)
@@ -184,10 +187,9 @@ for runNumber in range(3):
     memory = ReplayMemory(MEMORY_CAPACITY)
     steps_done = 0
     episode_durations = []
-
     if runNumber == 0:
         optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
-    if runNumber == 1:
+    elif runNumber == 1:
         optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2, amsgrad=True)
     elif runNumber == 2:
         optimizer = optim.AdamW(policy_net.parameters(), lr=20e-2, amsgrad=True)
@@ -200,19 +202,19 @@ for runNumber in range(3):
             action = select_action(state)
             reward, observation, info, currentTask, data = env.step(action)
             reward = torch.tensor(reward, device=device)
-            done = terminated = currentTask==10
+            done = terminated = currentTask==n_obs
 
             if terminated:
                 next_state = None
                 if runNumber == 0:
                     result1.append(-reward)
-                    # writer.add_scalar(f"Cost/Energy-per-kbit for DQN LR=0.05", -reward, global_step=i_episode)
+                    # writer.add_scalar(f"Cost/Energy-per-kbit for DDQN LR=0.05", -reward, global_step=i_episode)
                 if runNumber == 1:
                     result2.append(-reward)
-                    # writer.add_scalar(f"Cost/Energy-per-kbit for DQN LR=0.10", -reward, global_step=i_episode)
+                    # writer.add_scalar(f"Cost/Energy-per-kbit for DDQN LR=0.10", -reward, global_step=i_episode)
                 elif runNumber == 2:
                     result3.append(-reward)
-                    # writer.add_scalar(f"Cost/Energy-per-kbit for DQN LR=0.20", -reward, global_step=i_episode)
+                    # writer.add_scalar(f"Cost/Energy-per-kbit for DDQN LR=0.20", -reward, global_step=i_episode)
             else:
                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
@@ -241,19 +243,19 @@ for runNumber in range(3):
 print('Complete')
 
 for epoch in range(len(result1)):
-    writer.add_scalars(f"Energy per kbit for DQN with Different Learning Rates",
+    writer.add_scalars(f"Joules-per-kbit for DQN ",
                        {
-                           f'DQN LR=0.05':result1[epoch],
-                           f'DQN LR=0.10': result2[epoch],
-                           f'DQN LR=0.20': result3[epoch],
+                           f'LR=0.05':result1[epoch],
+                           f'LR=0.10': result2[epoch],
+                           f'LR=0.20': result3[epoch],
                        }, epoch+1)
 
 for epoch in range(len(loss1)):
-    writer.add_scalars("MSE Training Loss for DQN with Different Learning Rates",
+    writer.add_scalars("L1 Training Loss for DQN ",
                        {
-                           'DQN LR=0.05': loss1[epoch],
-                           'DQN LR=0.10': loss2[epoch],
-                           'DQN LR=0.20': loss3[epoch],
+                           'LR=0.05': loss1[epoch],
+                           'LR=0.10': loss2[epoch],
+                           'LR=0.20': loss3[epoch],
                        }, epoch)
 plot_durations(show_result=True)
 
@@ -261,8 +263,8 @@ plt.ioff()
 plt.plot(-durations_t.numpy(), label="LR = 0.05")
 plt.plot(-durations_t2.numpy(), label="LR = 0.10")
 plt.plot(-durations_t3.numpy(), label="LR = 0.20")
+writer.flush()
+writer.close()
 
 plt.legend()
 plt.show()
-writer.flush()
-writer.close()

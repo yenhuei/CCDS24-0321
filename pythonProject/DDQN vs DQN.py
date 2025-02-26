@@ -156,7 +156,7 @@ def optimize_model():
 
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
     # Compute loss
-    criterion = nn.MSELoss() #nn.SmoothL1Loss()
+    criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
     if runNumber == 0:
         # writer.add_scalar("Loss/DQN", loss, global_step=steps_done%6001)
@@ -238,14 +238,14 @@ for runNumber in range(2):
 print('Complete')
 
 for epoch in range(len(result1)):
-    writer.add_scalars(f"Energy per kbit for DQN vs DDQN",
+    writer.add_scalars(f"Joules-per-kbit ",
                        {
-                           f'DQN LR=0.10/':result1[epoch],
-                           f'DDQN LR=0.10/': result2[epoch],
+                           f'DQN LR=0.10':result1[epoch],
+                           f'DDQN LR=0.10': result2[epoch],
                        }, epoch+1)
 
 for epoch in range(len(loss1)):
-    writer.add_scalars("MSE Training Loss for DQN vs DDQN",
+    writer.add_scalars("L1 Training Loss ",
                        {
                            'DQN LR=0.10': loss1[epoch],
                            'DDQN LR=0.10': loss2[epoch],

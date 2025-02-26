@@ -114,9 +114,12 @@ def optimize_model():
 
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
     # Compute loss
-    criterion = nn.MSELoss() #nn.SmoothL1Loss()
+    criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
-    writer.add_scalar("Loss/Training Loss for DQN LR=0.10 (without Target Network)", loss, global_step=steps_done%6001)
+    writer.add_scalars("L1 Training Loss for ",
+                       {
+                           'DQN LR=0.10 (without Target Network)': loss,
+                       }, steps_done)
     loss1.append(loss)
     # Optimize the model
     optimizer.zero_grad()
@@ -149,8 +152,10 @@ for i_episode in range(num_episodes):
 
         if terminated:
             next_state = None
-            result1.append(-reward)
-            writer.add_scalar(f"Cost/Energy-per-kbit for DQN LR=0.10 (without Target Network)", -reward, global_step=i_episode+1)
+            writer.add_scalars(f"Joules-per-kbit ",
+                               {
+                                   f'DQN LR=0.10 (without Target Network)': -reward,
+                               }, i_episode + 1)
         else:
             next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
