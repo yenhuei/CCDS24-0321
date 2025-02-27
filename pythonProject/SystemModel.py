@@ -85,3 +85,4 @@ def offload_compute_time(cycle):
 # print('Full Local Compute Time Cost = ', local_compute_time(3e9))
 
 #tensorboard --logdir=C:\Users\TYH\PycharmProjects\pythonProject\.venv\runs
+#tensorboard --logdir=C:\Users\iShoo.ADAN\PycharmProjects\pythonProject1\runs
