@@ -99,3 +99,4 @@ print('Full Local Compute Energy Cost = ', full_local_energy)
 print('Full Local Compute Time Cost = ', local_compute_time(9e8)+node_time)
 
 #tensorboard --logdir=C:\Users\TYH\PycharmProjects\pythonProject\.venv\runs
+#tensorboard --logdir=C:\Users\iShoo.ADAN\PycharmProjects\pythonProject1\runs
