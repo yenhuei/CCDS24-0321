@@ -29,6 +29,13 @@ result3 = []
 loss1 = []
 loss2 = []
 loss3 = []
+time_list = []
+time_list_no = []
+time_list_full = []
+energy_list = []
+energy_list_no = []
+energy_list_full = []
+
 runNumber = 0
 i_episode = 0
 
@@ -180,7 +187,7 @@ for i_episode in range(num_episodes):
     state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
     for t in count():
         action = select_action(state)
-        reward, observation, info, currentTask, data = env.step(action)
+        reward, observation, energy, currentTask, data, time = env.step(action)
         reward = torch.tensor(reward, device=device)
         done = terminated = currentTask==n_obs
 

@@ -1,6 +1,5 @@
 import SystemModel as sm
 import gym
-from SystemModel import uplink_rate, transmit_time, channel_gain
 from gym import spaces
 import numpy as np
 from gym.envs.registration import register
@@ -22,6 +21,10 @@ class DroneEnv(gym.Env):
         self.currentTask = 0
         self.total_data = 0
         self.power = 0
+        self.no_offload_total_time = 0
+        self.full_offload_total_time = 0
+        self.no_offload_total_energy = 0
+        self.full_offload_total_energy = 0
 
         # One system with four separate device/tasks with unique data size and cycle counts
         self.observation_space = spaces.Discrete(10)
@@ -45,6 +48,10 @@ class DroneEnv(gym.Env):
         self.total_data = 0
         self.power = 0
         self.total_time = 0
+        self.no_offload_total_time = 0
+        self.full_offload_total_time = 0
+        self.no_offload_total_energy = 0
+        self.full_offload_total_energy = 0
 
         #Reset task data and cycle
         data_percentage = (np.random.rand(1, NUM_DEVICES))[0]
@@ -52,8 +59,9 @@ class DroneEnv(gym.Env):
         self.cycle = list()
         self.task = list()
         for i in range(self.devices):
-            data = round(data_percentage[i] * 200 + 300)*10e3 # kbits
-            cycle = (data)*10e3  # megacycles
+            data = round(data_percentage[i] * 200 + 300) # kbits
+            cycle = (data+600)*1e6  # megacycles
+            data = data * 1e3
             self.data.append(data)
             self.cycle.append(cycle)
             self.task.append((data,cycle))
@@ -68,44 +76,41 @@ class DroneEnv(gym.Env):
         return observation, info
 
     def step(self, action):
+        node_upload_time = sm.node_transmit_time(self.data[self.currentTask])
+        data = self.data[self.currentTask]
+        cycle = self.cycle[self.currentTask]
+
         offload_percentage = round(float(action/NUM_ACTIONS),3)
         local_cycle_counts = (1-offload_percentage)*(self.cycle[self.currentTask])
         offload_data_size = offload_percentage*(self.data[self.currentTask])
         self.total_data += self.data[self.currentTask]
         self.local_energy = sm.local_compute_energy(local_cycle_counts)
-        path_loss = sm.path_loss(offload_data_size)
-        gain = sm.channel_gain(path_loss)
-        upload_rate = sm.uplink_rate(gain)
-        upload_time = sm.transmit_time(offload_data_size, upload_rate)
         self.uplink_energy = sm.uplink_energy(upload_time)
         self.total_energy += (self.local_energy+self.uplink_energy)
 
         # Finding the max time taken to compute locally and to offload and compute
         local_compute_time = sm.local_compute_time(local_cycle_counts)
         # print('Local time = ' ,local_compute_time)
-        offload_compute_time = sm.offload_compute_time(offload_data_size * 10e3)
+        offload_compute_time = sm.offload_compute_time(offload_data_size)
         # print('Offload time = ', offload_compute_time)
-        total_time = max(local_compute_time, offload_compute_time + upload_time)
+        total_time = max(local_compute_time + node_upload_time, offload_compute_time + upload_time + node_upload_time)
         self.total_time += total_time
 
         # Finding the minimum energy between full offloading and no offloading
         full_local_energy = sm.local_compute_energy(self.cycle[self.currentTask])
-        path_loss = sm.path_loss(self.data[self.currentTask])
-        gain = sm.channel_gain(path_loss)
-        upload_rate = sm.uplink_rate(gain)
-        upload_time = sm.transmit_time(self.data[self.currentTask], upload_rate)
+        upload_time = sm.transmit_time(self.data[self.currentTask], 0)
         full_offload_energy = sm.uplink_energy(upload_time)
-        min_binary_energy = min(full_local_energy, full_offload_energy)
+        self.no_offload_total_energy += full_local_energy
+        self.no_offload_total_energy += full_offload_energy
 
         # Finding the minimum time between full offloading and no offloading
-        full_local_time = sm.local_compute_time(self.data[self.currentTask] * 10e3)
-        full_offload_time = sm.offload_compute_time(self.data[self.currentTask] * 10e3) + transmit_time(
-            self.data[self.currentTask], upload_rate)
+        full_local_time = sm.local_compute_time(self.data[self.currentTask]) + node_upload_time
+        full_offload_time = sm.offload_compute_time(self.data[self.currentTask]) + transmit_time(
+            self.data[self.currentTask], 0) + node_upload_time
+        self.no_offload_total_time = full_local_time
+        self.full_offload_total_time += full_offload_time
         min_binary_offloading_time = min(full_local_time, full_offload_time)
 
-        energy_difference = self.total_energy - min_binary_energy
-        time_difference = total_time - min_binary_offloading_time
-        time_ratio = total_time / min_binary_offloading_time
 
         self.data[self.currentTask] = 0
         observation = self._get_obs()
@@ -124,4 +129,4 @@ class DroneEnv(gym.Env):
         # return [round((-info/self.total_data*10e3)/self.total_time, 5)], observation, info, self.currentTask, self.data[self.currentTask-1]
 
         # print("Energy/kBits =  ", (-info / self.total_data * 10e3))
-        return [(-info / self.total_data * 10e3)], observation, info, self.currentTask,self.data[self.currentTask - 1]
+        return [(-info / self.total_data * 10e3)], observation, (info, self.no_offload_total_energy, self.full_offload_total_energy), self.currentTask,self.data[self.currentTask - 1], (self.total_time, self.no_offload_total_time, self.full_offload_total_time)

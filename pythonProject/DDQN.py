@@ -29,6 +29,12 @@ result3 = []
 loss1 = []
 loss2 = []
 loss3 = []
+time_list = []
+time_list_no = []
+time_list_full = []
+energy_list = []
+energy_list_no = []
+energy_list_full = []
 runNumber = 0
 i_episode = 0
 
@@ -202,7 +208,7 @@ for runNumber in range(3):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            reward, observation, info, currentTask, data = env.step(action)
+            reward, observation, energy, currentTask, data, times = env.step(action)
             reward = torch.tensor(reward, device=device)
             done = terminated = currentTask==n_obs
 
@@ -240,6 +246,13 @@ for runNumber in range(3):
             if done:
                 episode_durations.append(reward)
                 plot_durations()
+                if runNumber == 2:
+                    energy_list.append(energy[0])
+                    energy_list_no.append(energy[1])
+                    energy_list_full.append(energy[2])
+                    time_list.append(times[0])
+                    time_list_no.append(times[1])
+                    time_list_full.append(times[2])
                 break
 
 print('Complete')
@@ -252,13 +265,23 @@ for epoch in range(len(result1)):
                            f'LR=0.20': result3[epoch],
                        }, epoch+1)
 
-for epoch in range(len(loss1)):
-    writer.add_scalars("L1 Training Loss for DDQN ",
+
+for epoch in range(len(result1)):
+    writer.add_scalars("Energy Comparison ",
                        {
-                           'LR=0.05': loss1[epoch],
-                           'LR=0.10': loss2[epoch],
-                           'LR=0.20': loss3[epoch],
-                       }, epoch)
+                           'No Offloading': energy_list_no[epoch],
+                           'DDQN': energy_list[epoch],
+                           'Full Offloading': energy_list_full[epoch],
+                       }, epoch+1)
+
+for epoch in range(len(result1)):
+    writer.add_scalars("Time Comparison ",
+                       {
+                           'No Offloading': time_list_no[epoch],
+                           'DDQN': time_list[epoch],
+                           'Full Offloading': time_list_full[epoch],
+                       }, epoch+1)
+
 plot_durations(show_result=True)
 
 plt.ioff()
