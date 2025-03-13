@@ -13,7 +13,7 @@ import gym
 import matplotlib
 import matplotlib.pyplot as plt
 import copy
-from gym.envs.classic_control.EnvironmentGen import DroneEnv
+from gym.envs.classic_control.EnvironmentGen import DroneEnv, NUM_DEVICES
 from itertools import count
 import time
 import torch.utils.tensorboard
@@ -21,7 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter('runs')
 assert(writer != None)
-runName = 'DDQN vs DQN'
+runName = 'DQN with Different LR'
 DQN = True
 result1 = []
 result2 = []
@@ -29,6 +29,14 @@ result3 = []
 loss1 = []
 loss2 = []
 loss3 = []
+time_list_DQN = []
+time_list_DDQN = []
+time_list_no = []
+time_list_full = []
+energy_list_DQN = []
+energy_list_DDQN = []
+energy_list_no = []
+energy_list_full = []
 runNumber = 0
 i_episode = 0
 
@@ -38,13 +46,13 @@ DISCOUNT = GAMMA = 0.001
 EPS_START = 0.99
 EPS_END = 0.05
 EPS_DECAY = 1000
-LR = 10e-2
+LR = 20e-2
 UPDATE_RATE = 1e-3 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
 UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1024*8
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 n_actions = 100
-n_obs = 10
+n_obs = NUM_DEVICES
 
 env = gym.make("DroneEnv-v0")
 env = env.unwrapped
@@ -54,7 +62,7 @@ NUM_STATES = env.observation_space
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 Transition = namedtuple("Transition",
-                        ("state", "action", "next_state", "reward"))
+                        ("state", "action", "next_state", "cost"))
 class ReplayMemory(object):
     def __init__(self, capacity):
         self.memory = deque([], maxlen=capacity)
@@ -86,7 +94,7 @@ def select_action(state):
     steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
-            #Input state and return max reward step returned by model
+            #Input state and return max cost step returned by model
             return policy_net(state).max(1).indices.view(1, 1)
     else:
         return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
@@ -98,16 +106,9 @@ if is_ipython:
 
 plt.ion()
 
-def plot_durations(show_result=False):
-    global durations_t, durations_t2, durations_t3
+def plot_costs(show_result=False):
+    global costs_t, costs_t2, costs_t3, runNumber
     plt.figure(1)
-    if runNumber==0:
-        durations_t = torch.tensor(episode_durations, dtype=torch.float)
-    elif runNumber == 1:
-        durations_t2 = torch.tensor(episode_durations, dtype=torch.float)
-    elif runNumber == 2:
-        durations_t3 = torch.tensor(episode_durations, dtype=torch.float)
-
     if show_result:
         plt.title('Result of '+ runName)
     else:
@@ -116,13 +117,20 @@ def plot_durations(show_result=False):
     plt.xlabel('Episode')
     plt.ylabel('Energy/kBits')
 
+    if runNumber==0:
+        costs_t = torch.tensor(episode_costs, dtype=torch.float)
+        plt.plot(-costs_t.numpy(), label='DQN')
+    elif runNumber == 1:
+        costs_t2 = torch.tensor(episode_costs, dtype=torch.float)
+        plt.plot(-costs_t.numpy(), label='DQN')
+        plt.plot(-costs_t2.numpy(), label='DDQN')
 
-    #plt.pause(0.001)  # pause a bit so that plots are updated
+    plt.pause(0.001)  # pause a bit so that plots are updated
     if is_ipython:
         if not show_result:
-            pass
-            # display.display(plt.gcf())
-            # display.clear_output(wait=True)
+            # pass
+            display.display(plt.gcf())
+            display.clear_output(wait=True)
         else:
             display.display(plt.gcf())
 
@@ -139,31 +147,29 @@ def optimize_model():
                                                 if s is not None])
     state_batch = torch.cat(batch.state)
     action_batch = torch.cat(batch.action)
-    reward_batch = torch.cat(batch.reward)
+    cost_batch = torch.cat(batch.cost)
 
     state_action_values = policy_net(state_batch).gather(1, action_batch)
+    next_state_values = torch.zeros(BATCH_SIZE, device=device)
+    with torch.no_grad():
+        policy_q_values = policy_net(non_final_next_states)
+        target_q_values = target_net(non_final_next_states)
+        next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
 
-    if DQN == True:
-        next_state_values = torch.zeros(BATCH_SIZE, device=device)
-        with torch.no_grad():
-            next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
-    else:
-        next_state_values = torch.zeros(BATCH_SIZE, device=device)
-        with torch.no_grad():
-            policy_q_values = policy_net(non_final_next_states)
-            target_q_values = target_net(non_final_next_states)
-            next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
-
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+    expected_state_action_values = (next_state_values * GAMMA) + cost_batch
     # Compute loss
     criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
     if runNumber == 0:
-        # writer.add_scalar("Loss/DQN", loss, global_step=steps_done%6001)
+        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.05", loss, global_step=steps_done%6001)
         loss1.append(loss)
-    if runNumber == 1:
-        # writer.add_scalar("Loss/DDQN", loss, global_step=steps_done%6001)
+    elif runNumber == 1:
+        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.10", loss, global_step=steps_done%6001)
         loss2.append(loss)
+    elif runNumber == 2:
+        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.20", loss, global_step=steps_done%6001)
+        loss3.append(loss)
+
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
@@ -185,12 +191,12 @@ for runNumber in range(2):
 
     memory = ReplayMemory(MEMORY_CAPACITY)
     steps_done = 0
-    episode_durations = []
-
-    optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
-    if runNumber == 1:
-        DQN = False
+    episode_costs = []
+    if runNumber == 0:
         optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+    elif runNumber == 1:
+        DQN = False
+        optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2, amsgrad=True)
 
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
@@ -198,23 +204,17 @@ for runNumber in range(2):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            reward, observation, info, currentTask, data = env.step(action)
-            reward = torch.tensor(reward, device=device)
-            done = terminated = currentTask==10
+            cost, observation, info, currentTask, energy_tuple, time_tuple = env.step(action)
+            cost = torch.tensor(cost, device=device)
+            done = terminated = currentTask==n_obs
 
             if terminated:
                 next_state = None
-                if runNumber == 0:
-                    result1.append(-reward)
-                    # writer.add_scalar(f"Cost/DQN", -reward, global_step=i_episode)
-                if runNumber == 1:
-                    result2.append(-reward)
-                    # writer.add_scalar(f"Cost/DDQN", -reward, global_step=i_episode)
             else:
                 next_state = torch.tensor(observation, dtype=torch.float32, device=device).unsqueeze(0)
 
             # Store the transition in memory
-            memory.push(state, action, next_state, reward)
+            memory.push(state, action, next_state, cost)
 
             # Move to the next state
             state = next_state
@@ -231,32 +231,55 @@ for runNumber in range(2):
             target_net.load_state_dict(target_net_state_dict)
 
             if done:
-                episode_durations.append(reward)
-                plot_durations()
+                episode_costs.append(-info)
+                plot_costs()
+                if runNumber == 0:
+                    result1.append(info)
+                    energy_list_DQN.append(energy_tuple[0])
+                    energy_list_no.append(energy_tuple[1])
+                    energy_list_full.append(energy_tuple[2])
+                    time_list_DQN.append(time_tuple[0])
+                    time_list_no.append(time_tuple[1])
+                    time_list_full.append(time_tuple[2])
+                else:
+                    result2.append(info)
+                    energy_list_DDQN.append(energy_tuple[0])
+                    time_list_DDQN.append(time_tuple[0])
                 break
 
 print('Complete')
 
 for epoch in range(len(result1)):
-    writer.add_scalars(f"Joules-per-kbit ",
+    writer.add_scalars(f"Joules-per-kbit for DQN vs DDQN ",
                        {
-                           f'DQN LR=0.10':result1[epoch],
-                           f'DDQN LR=0.10': result2[epoch],
+                           f'DQN':result1[epoch],
+                           f'DDQN': result2[epoch],
                        }, epoch+1)
 
-for epoch in range(len(loss1)):
-    writer.add_scalars("L1 Training Loss ",
+
+for epoch in range(len(result1)):
+    writer.add_scalars("Energy Comparison ",
                        {
-                           'DQN LR=0.10': loss1[epoch],
-                           'DDQN LR=0.10': loss2[epoch],
-                       }, epoch)
-plot_durations(show_result=True)
+                           'No Offloading': energy_list_no[epoch],
+                           'DQN': energy_list_DQN[epoch],
+                           'DDQN': energy_list_DDQN[epoch],
+                           'Full Offloading': energy_list_full[epoch],
+                       }, epoch+1)
+
+for epoch in range(len(result1)):
+    writer.add_scalars("Time Comparison ",
+                       {
+                           'No Offloading': time_list_no[epoch],
+                           'DQN': time_list_DQN[epoch],
+                           'DDQN': time_list_DDQN[epoch],
+                           'Full Offloading': time_list_full[epoch],
+                       }, epoch+1)
+
+plot_costs(show_result=True)
 
 plt.ioff()
-plt.plot(-durations_t.numpy(), label="DQN")
-plt.plot(-durations_t2.numpy(), label="DDQN")
+writer.flush()
+writer.close()
 
 plt.legend()
 plt.show()
-writer.flush()
-writer.close()

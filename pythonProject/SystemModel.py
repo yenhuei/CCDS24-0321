@@ -53,16 +53,16 @@ def path_loss(data):
     # print("Pathloss = ", PL)
     return PL
 
-def transmit_time(data,rate):
+def uav_transmit_time(data):
     pl = path_loss(data)
     cg = channel_gain(pl)
-    rates = uplink_rate(cg)
-    time = data/rates
+    rate = uplink_rate(cg)
+    time = data/rate
     return time
 
-def local_compute_energy(cycle):
-    energy = k_compute*math.pow(f_uav,2)*cycle
-    # print("Local Energy = ", energy)
+def local_compute_energy(time):
+    energy = k_compute*math.pow(f_uav,3)*time
+
     return energy
 
 def uplink_energy(time):
@@ -85,18 +85,22 @@ def offload_compute_time(cycle):
     time = (cycle)/f_mec
     return time
 
-path_l = path_loss(3e5)
-upload_time = transmit_time(3e5, 0)
-full_offload_energy = uplink_energy(upload_time)
-full_local_energy = local_compute_energy(9e8)
-node_time = node_transmit_time(3e5)
 
-
-
-print('Full Offloading Energy Cost = ', full_offload_energy)
-print('Full Offloading Time Cost = ', upload_time+offload_compute_time(9e8)+node_time, '\n')
-print('Full Local Compute Energy Cost = ', full_local_energy)
-print('Full Local Compute Time Cost = ', local_compute_time(9e8)+node_time)
+# for i in range(3):
+#     data = (i*100 + 300)
+#     cycle = (data + 600) *1e6
+#     data *= 1e3
+#
+#     upload_time = uav_transmit_time(data)
+#     full_offload_energy = uplink_energy(upload_time)
+#     full_local_compute_time = local_compute_time(cycle)
+#     full_local_energy = local_compute_energy(full_local_compute_time)
+#     node_time = node_transmit_time(data)
+#     print('Full Offloading Energy Cost = ', full_offload_energy)
+#     print('Full Offloading Time Cost = ', upload_time+offload_compute_time(cycle)+node_time)
+#     print('Full Local Compute Energy Cost = ', full_local_energy)
+#     print('Full Local Compute Time Cost = ', full_local_compute_time+node_time)
+#     print("Time Differences = ", ((upload_time+offload_compute_time(cycle)) - full_local_compute_time)/(data/1e3)*10, '\n')
 
 #tensorboard --logdir=C:\Users\TYH\PycharmProjects\pythonProject\.venv\runs
 #tensorboard --logdir=C:\Users\iShoo.ADAN\PycharmProjects\pythonProject1\runs
