@@ -27,6 +27,7 @@ class DroneEnv(gym.Env):
         self.full_offload_total_time = 0
         self.no_offload_total_energy = 0
         self.full_offload_total_energy = 0
+        self.real_total_energy = [0,0,0]
 
         # One system with four separate device/tasks with unique data size and cycle counts
         self.observation_space = spaces.Discrete(10)
@@ -57,6 +58,7 @@ class DroneEnv(gym.Env):
         self.full_offload_total_time = 0
         self.no_offload_total_energy = 0
         self.full_offload_total_energy = 0
+        self.real_total_energy = [0,0,0]
 
         # Reset task data and cycle
         data_percentage = (np.random.rand(1, NUM_DEVICES))[0]
@@ -125,7 +127,10 @@ class DroneEnv(gym.Env):
 
         # Statistics Tracking
         self.currentTask += 1
-
+        self.real_total_energy[0] += total_energy
+        self.real_total_energy[0] += no_offloading_energy
+        self.real_total_energy[0] += full_offloading_energy
+        real_time = tuple(real_total_energy)
         self.total_time += total_time
         self.no_offload_total_time += no_offloading_time
         self.no_offload_total_energy += no_offloading_energy
@@ -154,4 +159,4 @@ class DroneEnv(gym.Env):
 
         if self.currentTask==4:
             print(time_tuple, "\n")
-        return [-total_energy_per_kbits], observation, info, self.currentTask, energy_tuple, time_tuple
+        return [-total_energy_per_kbits], observation, info, self.currentTask, energy_tuple, time_tuple, real_time
