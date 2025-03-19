@@ -86,8 +86,8 @@ def offload_compute_time(cycle):
     return time
 
 
-# for i in range(3):
-#     data = (i*100 + 300)
+# for i in range(20):
+#     data = (i*10 + 300)
 #     cycle = (data + 600) *1e6
 #     data *= 1e3
 #
@@ -100,7 +100,7 @@ def offload_compute_time(cycle):
 #     print('Full Offloading Time Cost = ', upload_time+offload_compute_time(cycle)+node_time)
 #     print('Full Local Compute Energy Cost = ', full_local_energy)
 #     print('Full Local Compute Time Cost = ', full_local_compute_time+node_time)
-#     print("Time Differences = ", ((upload_time+offload_compute_time(cycle)) - full_local_compute_time)/(data/1e3)*10, '\n')
+#     print("Time Differences = ", ((upload_time+offload_compute_time(cycle)) - full_local_compute_time), '\n')
 
 #tensorboard --logdir=C:\Users\TYH\PycharmProjects\pythonProject\.venv\runs
 #tensorboard --logdir=C:\Users\iShoo.ADAN\PycharmProjects\pythonProject1\runs

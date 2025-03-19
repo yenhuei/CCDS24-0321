@@ -21,22 +21,28 @@ from torch.utils.tensorboard import SummaryWriter
 
 writer = SummaryWriter('runs')
 assert(writer != None)
-runName = 'DQN with Different LR'
-DQN = True
+isDQN = True
 result1 = []
 result2 = []
 result3 = []
 loss1 = []
 loss2 = []
 loss3 = []
-time_list_DQN = []
-time_list_DDQN = []
+time_list05 = []
+time_list10 = []
+time_list20 = []
 time_list_no = []
 time_list_full = []
-energy_list_DQN = []
-energy_list_DDQN = []
+energy_list05 = []
+energy_list10 = []
+energy_list20 = []
 energy_list_no = []
 energy_list_full = []
+real_energy_list05 = []
+real_energy_list10 = []
+real_energy_list20 = []
+real_energy_list_no = []
+real_energy_list_full = []
 runNumber = 0
 i_episode = 0
 
@@ -46,13 +52,14 @@ DISCOUNT = GAMMA = 0.001
 EPS_START = 0.99
 EPS_END = 0.05
 EPS_DECAY = 1000
-LR = 20e-2
+LR = 5e-2
 UPDATE_RATE = 1e-3 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
 UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1024*8
 BATCH_SIZE = 256
 n_actions = 100
 n_obs = NUM_DEVICES
+runName = "LR="+str(LR)
 
 env = gym.make("DroneEnv-v0")
 env = env.unwrapped
@@ -151,10 +158,15 @@ def optimize_model():
 
     state_action_values = policy_net(state_batch).gather(1, action_batch)
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
-    with torch.no_grad():
-        policy_q_values = policy_net(non_final_next_states)
-        target_q_values = target_net(non_final_next_states)
-        next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
+
+    if isDQN==True:
+        with torch.no_grad():
+            next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
+    else:
+        with torch.no_grad():
+            policy_q_values = policy_net(non_final_next_states)
+            target_q_values = target_net(non_final_next_states)
+            next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
 
     expected_state_action_values = (next_state_values * GAMMA) + cost_batch
     # Compute loss
@@ -193,10 +205,11 @@ for runNumber in range(2):
     steps_done = 0
     episode_costs = []
     if runNumber == 0:
+        isDQN = True
         optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
     elif runNumber == 1:
-        DQN = False
-        optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2, amsgrad=True)
+        isDQN = False
+        optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
 
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
@@ -204,9 +217,9 @@ for runNumber in range(2):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            cost, observation, info, currentTask, energy_tuple, time_tuple = env.step(action)
+            cost, observation, info, currentTask, energy_tuple, time_tuple, real_energy = env.step(action)
             cost = torch.tensor(cost, device=device)
-            done = terminated = currentTask==n_obs
+            done = terminated = currentTask == n_obs
 
             if terminated:
                 next_state = None
@@ -227,7 +240,8 @@ for runNumber in range(2):
             target_net_state_dict = target_net.state_dict()
             policy_net_state_dict = policy_net.state_dict()
             for key in policy_net_state_dict:
-                target_net_state_dict[key] = policy_net_state_dict[key]*UPDATE_RATE + target_net_state_dict[key]*(1-UPDATE_RATE)
+                target_net_state_dict[key] = policy_net_state_dict[key] * UPDATE_RATE + target_net_state_dict[key] * (
+                            1 - UPDATE_RATE)
             target_net.load_state_dict(target_net_state_dict)
 
             if done:
@@ -235,46 +249,53 @@ for runNumber in range(2):
                 plot_costs()
                 if runNumber == 0:
                     result1.append(info)
-                    energy_list_DQN.append(energy_tuple[0])
-                    energy_list_no.append(energy_tuple[1])
-                    energy_list_full.append(energy_tuple[2])
-                    time_list_DQN.append(time_tuple[0])
-                    time_list_no.append(time_tuple[1])
-                    time_list_full.append(time_tuple[2])
-                else:
+                    energy_list05.append(energy_tuple[0])
+                    time_list05.append(time_tuple[0])
+                    real_energy_list05.append(real_energy[0])
+                elif runNumber == 1:
                     result2.append(info)
-                    energy_list_DDQN.append(energy_tuple[0])
-                    time_list_DDQN.append(time_tuple[0])
+                    energy_list10.append(energy_tuple[0])
+                    time_list10.append(time_tuple[0])
+                    real_energy_list10.append(real_energy[0])
                 break
 
 print('Complete')
 
-for epoch in range(len(result1)):
-    writer.add_scalars(f"Joules-per-kbit for DQN vs DDQN ",
-                       {
-                           f'DQN':result1[epoch],
-                           f'DDQN': result2[epoch],
-                       }, epoch+1)
-
-
-for epoch in range(len(result1)):
-    writer.add_scalars("Energy Comparison ",
-                       {
-                           'No Offloading': energy_list_no[epoch],
-                           'DQN': energy_list_DQN[epoch],
-                           'DDQN': energy_list_DDQN[epoch],
-                           'Full Offloading': energy_list_full[epoch],
-                       }, epoch+1)
-
-for epoch in range(len(result1)):
-    writer.add_scalars("Time Comparison ",
-                       {
-                           'No Offloading': time_list_no[epoch],
-                           'DQN': time_list_DQN[epoch],
-                           'DDQN': time_list_DDQN[epoch],
-                           'Full Offloading': time_list_full[epoch],
-                       }, epoch+1)
-
+# for epoch in range(len(result1)):
+#     writer.add_scalars(f"Average Joules-per-kbit ",
+#                        {
+#                            f'DQN '+ runName:result1[epoch],
+#                            # f'DDQN '+ runName: result2[epoch],
+#                        }, epoch+1)
+#
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Energy Comparison ",
+#                        {
+#                            'DQN '+ runName: energy_list05[epoch],
+#                            # 'DDQN '+ runName: energy_list10[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Time Comparison ",
+#                        {
+#                            'DQN '+ runName: time_list05[epoch],
+#                            # 'DDQN '+ runName: time_list10[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Real Energy Comparison ",
+#                        {
+#                            'DQN '+ runName: real_energy_list05[epoch],
+#                            # 'DDQN '+ runName: real_energy_list10[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(loss1)):
+#     writer.add_scalars("Convergence Sum ",
+#                        {
+#                            'DQN '+ runName: sum(loss1[:epoch+1]),
+#                            # 'DDQN '+ runName: sum(loss2[:epoch+1]),
+#                        }, epoch+1)
 plot_costs(show_result=True)
 
 plt.ioff()

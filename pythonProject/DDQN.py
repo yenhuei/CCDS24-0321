@@ -39,6 +39,12 @@ energy_list10 = []
 energy_list20 = []
 energy_list_no = []
 energy_list_full = []
+real_energy_list05 = []
+real_energy_list10 = []
+real_energy_list20 = []
+real_energy_list_no = []
+real_energy_list_full = []
+
 runNumber = 0
 i_episode = 0
 
@@ -167,6 +173,7 @@ def optimize_model():
     # Compute loss
     criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
+
     if runNumber == 0:
         # writer.add_scalar("Loss/Training Loss for DDQN LR=0.05", loss, global_step=steps_done%6001)
         loss1.append(loss)
@@ -180,8 +187,6 @@ def optimize_model():
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
-    # In-place gradient clipping
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
 if torch.cuda.is_available() or torch.backends.mps.is_available():
@@ -200,11 +205,11 @@ for runNumber in range(3):
     steps_done = 0
     episode_costs = []
     if runNumber == 0:
-        optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+        optimizer = optim.AdamW(policy_net.parameters(), lr=5e-2)
     elif runNumber == 1:
-        optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2, amsgrad=True)
+        optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2)
     elif runNumber == 2:
-        optimizer = optim.AdamW(policy_net.parameters(), lr=20e-2, amsgrad=True)
+        optimizer = optim.AdamW(policy_net.parameters(), lr=20e-2)
 
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
@@ -212,7 +217,7 @@ for runNumber in range(3):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            cost, observation, info, currentTask, energy_tuple, time_tuple = env.step(action)
+            cost, observation, info, currentTask, energy_tuple, time_tuple, real_energy = env.step(action)
             cost = torch.tensor(cost, device=device)
             done = terminated = currentTask==n_obs
 
@@ -245,10 +250,12 @@ for runNumber in range(3):
                     result1.append(info)
                     energy_list05.append(energy_tuple[0])
                     time_list05.append(time_tuple[0])
+                    real_energy_list05.append(real_energy[0])
                 elif runNumber == 1:
                     result2.append(info)
                     energy_list10.append(energy_tuple[0])
                     time_list10.append(time_tuple[0])
+                    real_energy_list10.append(real_energy[0])
                 elif runNumber == 2:
                     result3.append(info)
                     energy_list20.append(energy_tuple[0])
@@ -257,39 +264,59 @@ for runNumber in range(3):
                     time_list20.append(time_tuple[0])
                     time_list_no.append(time_tuple[1])
                     time_list_full.append(time_tuple[2])
+                    real_energy_list20.append(real_energy[0])
+                    real_energy_list_no.append(real_energy[1])
+                    real_energy_list_full.append(real_energy[2])
                 break
 
 print('Complete')
 
-for epoch in range(len(result1)):
-    writer.add_scalars(f"Joules-per-kbit for DDQN ",
+# for epoch in range(len(result1)):
+#     writer.add_scalars(f"Average Joules-per-kbit ",
+#                        {
+#                            f'DDQN LR=0.05': result1[epoch],
+#                            f'DDQN LR=0.10': result2[epoch],
+#                            f'DDQN LR=0.20': result3[epoch],
+#                        }, epoch+1)
+#
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Energy Comparison ",
+#                        {
+#                            'No Offloading': energy_list_no[epoch],
+#                            'DDQN LR=0.05': energy_list05[epoch],
+#                            'DDQN LR=0.10': energy_list10[epoch],
+#                            'DDQN LR=0.20': energy_list20[epoch],
+#                            'Full Offloading': energy_list_full[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Time Comparison ",
+#                        {
+#                            'No Offloading': time_list_no[epoch],
+#                            'DDQN LR=0.05': time_list05[epoch],
+#                            'DDQN LR=0.10': time_list10[epoch],
+#                            'DDQN LR=0.20': time_list20[epoch],
+#                            'Full Offloading': time_list_full[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Real Energy Comparison ",
+#                        {
+#                            'No Offloading': real_energy_list_no[epoch],
+#                            'DDQN LR=0.05': real_energy_list05[epoch],
+#                            'DDQN LR=0.10': real_energy_list10[epoch],
+#                            'DDQN LR=0.20': real_energy_list20[epoch],
+#                            'Full Offloading': real_energy_list_full[epoch],
+#                        }, epoch+1)
+
+for epoch in range(len(loss1)):
+    writer.add_scalars("Convergence Sum ",
                        {
-                           f'LR=0.05': result1[epoch],
-                           f'LR=0.10': result2[epoch],
-                           f'LR=0.20': result3[epoch],
+                           'DDQN LR=0.05': loss1[epoch],#sum(loss1[:epoch+1]),
+                           'DDQN LR=0.10': loss2[epoch],#sum(loss2[:epoch+1]),
+                           'DDQN LR=0.20': loss3[epoch],#sum(loss3[:epoch+1]),
                        }, epoch+1)
-
-
-for epoch in range(len(result1)):
-    writer.add_scalars("Energy Comparison ",
-                       {
-                           'No Offloading': energy_list_no[epoch],
-                           'DDQN LR=0.05': energy_list05[epoch],
-                           'DDQN LR=0.10': energy_list10[epoch],
-                           'DDQN LR=0.20': energy_list20[epoch],
-                           'Full Offloading': energy_list_full[epoch],
-                       }, epoch+1)
-
-for epoch in range(len(result1)):
-    writer.add_scalars("Time Comparison ",
-                       {
-                           'No Offloading': time_list_no[epoch],
-                           'DDQN LR=0.05': time_list05[epoch],
-                           'DDQN LR=0.10': time_list10[epoch],
-                           'DDQN LR=0.20': time_list20[epoch],
-                           'Full Offloading': time_list_full[epoch],
-                       }, epoch+1)
-
 plot_costs(show_result=True)
 
 plt.ioff()

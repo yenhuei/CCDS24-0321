@@ -10,8 +10,9 @@ env.reset()
 
 while True:
     a = input("STEP\n")
-    cost, observation, info, currentTask, energy_tuple, time_tuple = env.step(a)
+    cost, observation, info, currentTask, energy_tuple, time_tuple, real_energy = env.step(a)
     if currentTask==4:
         env.reset()
     print("Energy: ", energy_tuple)
     print("Time: ", time_tuple)
+    print("Real Energy: ", real_energy)

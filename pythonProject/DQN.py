@@ -39,6 +39,11 @@ energy_list10 = []
 energy_list20 = []
 energy_list_no = []
 energy_list_full = []
+real_energy_list05 = []
+real_energy_list10 = []
+real_energy_list20 = []
+real_energy_list_no = []
+real_energy_list_full = []
 runNumber = 0
 i_episode = 0
 
@@ -50,7 +55,6 @@ EPS_END = 0.05
 EPS_DECAY = 1000
 LR = 5e-2
 UPDATE_RATE = 1e-3 #Update rate of the target network -> copying params from actor Target = (1-rate)Target + rate(Actor)
-UPDATE_INTERVAL = Q_NETWORK_ITERATION = 100
 MEMORY_CAPACITY = 1024*8
 BATCH_SIZE = 256
 n_actions = 100
@@ -159,29 +163,24 @@ def optimize_model():
     state_action_values = policy_net(state_batch).gather(1, action_batch)
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     with torch.no_grad():
-        policy_q_values = policy_net(non_final_next_states)
-        target_q_values = target_net(non_final_next_states)
-        next_state_values[non_final_mask] = target_q_values.gather(1, torch.max(policy_q_values, 1)[1].unsqueeze(1)).squeeze(1)
+        next_state_values[non_final_mask] = target_net(non_final_next_states).max(1).values
 
     expected_state_action_values = (next_state_values * GAMMA) + cost_batch
     # Compute loss
     criterion = nn.SmoothL1Loss()
     loss = criterion(state_action_values, expected_state_action_values.unsqueeze(1))
     if runNumber == 0:
-        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.05", loss, global_step=steps_done%6001)
         loss1.append(loss)
     elif runNumber == 1:
-        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.10", loss, global_step=steps_done%6001)
         loss2.append(loss)
     elif runNumber == 2:
-        # writer.add_scalar("Loss/Training Loss for DDQN LR=0.20", loss, global_step=steps_done%6001)
         loss3.append(loss)
 
     # Optimize the model
     optimizer.zero_grad()
     loss.backward()
     # In-place gradient clipping
-    torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
+    # torch.nn.utils.clip_grad_value_(policy_net.parameters(), 100)
     optimizer.step()
 
 if torch.cuda.is_available() or torch.backends.mps.is_available():
@@ -200,11 +199,11 @@ for runNumber in range(3):
     steps_done = 0
     episode_costs = []
     if runNumber == 0:
-        optimizer = optim.AdamW(policy_net.parameters(), lr=LR, amsgrad=True)
+        optimizer = optim.AdamW(policy_net.parameters(), lr=5e-2)
     elif runNumber == 1:
-        optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2, amsgrad=True)
+        optimizer = optim.AdamW(policy_net.parameters(), lr=10e-2)
     elif runNumber == 2:
-        optimizer = optim.AdamW(policy_net.parameters(), lr=20e-2, amsgrad=True)
+        optimizer = optim.AdamW(policy_net.parameters(), lr=20e-2)
 
     for i_episode in range(num_episodes):
         # Initialize the environment and get its state
@@ -212,7 +211,7 @@ for runNumber in range(3):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            cost, observation, info, currentTask, energy_tuple, time_tuple = env.step(action)
+            cost, observation, info, currentTask, energy_tuple, time_tuple, real_energy = env.step(action)
             cost = torch.tensor(cost, device=device)
             done = terminated = currentTask==n_obs
 
@@ -239,16 +238,18 @@ for runNumber in range(3):
             target_net.load_state_dict(target_net_state_dict)
 
             if done:
-                episode_costs.append(cost)
+                episode_costs.append(-info)
                 plot_costs()
                 if runNumber == 0:
                     result1.append(info)
                     energy_list05.append(energy_tuple[0])
                     time_list05.append(time_tuple[0])
+                    real_energy_list05.append(real_energy[0])
                 elif runNumber == 1:
                     result2.append(info)
                     energy_list10.append(energy_tuple[0])
                     time_list10.append(time_tuple[0])
+                    real_energy_list10.append(real_energy[0])
                 elif runNumber == 2:
                     result3.append(info)
                     energy_list20.append(energy_tuple[0])
@@ -257,45 +258,66 @@ for runNumber in range(3):
                     time_list20.append(time_tuple[0])
                     time_list_no.append(time_tuple[1])
                     time_list_full.append(time_tuple[2])
+                    real_energy_list20.append(real_energy[0])
+                    real_energy_list_no.append(real_energy[1])
+                    real_energy_list_full.append(real_energy[2])
                 break
 
 print('Complete')
 
-for epoch in range(len(result1)):
-    writer.add_scalars(f"Joules-per-kbit for DQN ",
-                       {
-                           f'LR=0.05': result1[epoch],
-                           f'LR=0.10': result2[epoch],
-                           f'LR=0.20': result3[epoch],
-                       }, epoch+1)
+# for epoch in range(len(result1)):
+#     writer.add_scalars(f"Average Joules-per-kbit ",
+#                        {
+#                            f'DQN LR=0.05': result1[epoch],
+#                            f'DQN LR=0.10': result2[epoch],
+#                            f'DQN LR=0.20': result3[epoch],
+#                        }, epoch+1)
+#
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Energy Comparison ",
+#                        {
+#                           # 'No Offloading': energy_list_no[epoch],
+#                            'DQN LR=0.05': energy_list05[epoch],
+#                            'DQN LR=0.10': energy_list10[epoch],
+#                            'DQN LR=0.20': energy_list20[epoch],
+#                           # 'Full Offloading': energy_list_full[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Time Comparison ",
+#                        {
+#                           # 'No Offloading': time_list_no[epoch],
+#                            'DQN LR=0.05': time_list05[epoch],
+#                            'DQN LR=0.10': time_list10[epoch],
+#                            'DQN LR=0.20': time_list20[epoch],
+#                           # 'Full Offloading': time_list_full[epoch],
+#                        }, epoch+1)
+#
+# for epoch in range(len(result1)):
+#     writer.add_scalars("Real Energy Comparison ",
+#                        {
+#                            #'No Offloading': real_energy_list_no[epoch],
+#                            'DQN LR=0.05': real_energy_list05[epoch],
+#                            'DQN LR=0.10': real_energy_list10[epoch],
+#                            'DQN LR=0.20': real_energy_list20[epoch],
+#                           #  'Full Offloading': real_energy_list_full[epoch],
+#                        }, epoch+1)
 
-
-for epoch in range(len(result1)):
-    writer.add_scalars("Energy Comparison ",
+for epoch in range(len(loss1)):
+    writer.add_scalars("Convergence Sum ",
                        {
-                           'No Offloading': energy_list_no[epoch],
-                           'DQN LR=0.05': energy_list05[epoch],
-                           'DQN LR=0.10': energy_list10[epoch],
-                           'DQN LR=0.20': energy_list20[epoch],
-                           'Full Offloading': energy_list_full[epoch],
-                       }, epoch+1)
-
-for epoch in range(len(result1)):
-    writer.add_scalars("Time Comparison ",
-                       {
-                           'No Offloading': time_list_no[epoch],
-                           'DQN LR=0.05': time_list05[epoch],
-                           'DQN LR=0.10': time_list10[epoch],
-                           'DQN LR=0.20': time_list20[epoch],
-                           'Full Offloading': time_list_full[epoch],
+                           'DQN LR=0.05': sum(loss1[:epoch+1]),
+                           'DQN LR=0.10': sum(loss2[:epoch+1]),
+                           'DQN LR=0.20': sum(loss3[:epoch+1]),
                        }, epoch+1)
 
 plot_costs(show_result=True)
 
 plt.ioff()
 plt.plot(-costs_t.numpy(), label="LR = 0.05")
-plt.plot(-costs_t2.numpy(), label="LR = 0.10")
-plt.plot(-costs_t3.numpy(), label="LR = 0.20")
+#plt.plot(-costs_t2.numpy(), label="LR = 0.10")
+#plt.plot(-costs_t3.numpy(), label="LR = 0.20")
 writer.flush()
 writer.close()
 
