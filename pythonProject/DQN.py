@@ -44,12 +44,18 @@ real_energy_list10 = []
 real_energy_list20 = []
 real_energy_list_no = []
 real_energy_list_full = []
+real_average_list05 = []
+real_average_list10 = []
+real_average_list20 = []
+real_average_list_no = []
+real_average_list_full = []
+
 runNumber = 0
 i_episode = 0
 
 # hyper-parameters
 NUM_EPISODES = 600
-DISCOUNT = GAMMA = 0.001
+DISCOUNT = GAMMA = 0.1
 EPS_START = 0.99
 EPS_END = 0.05
 EPS_DECAY = 1000
@@ -132,8 +138,8 @@ def plot_costs(show_result=False):
         plt.plot(-costs_t2.numpy(), label='LR=0.10')
     elif runNumber == 2:
         costs_t3 = torch.tensor(episode_costs, dtype=torch.float)
-        plt.plot(-costs_t.numpy(), label='LR=0.05')
-        plt.plot(-costs_t2.numpy(), label='LR=0.10')
+        # plt.plot(-costs_t.numpy(), label='LR=0.05')
+        # plt.plot(-costs_t2.numpy(), label='LR=0.10')
         plt.plot(-costs_t3.numpy(), label='LR=0.20')
 
     plt.pause(0.001)  # pause a bit so that plots are updated
@@ -189,7 +195,7 @@ else:
     num_episodes = 256
 
 
-for runNumber in range(3):
+for runNumber in range(2,3):
     state, info = env.reset()
     policy_net = DQN(n_actions, n_obs).to(device)
     target_net = DQN(n_actions, n_obs).to(device)
@@ -211,7 +217,7 @@ for runNumber in range(3):
         state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
         for t in count():
             action = select_action(state)
-            cost, observation, info, currentTask, energy_tuple, time_tuple, real_energy = env.step(action)
+            cost, observation, info, currentTask, energy_tuple, time_tuple, real_energy, real_average = env.step(action)
             cost = torch.tensor(cost, device=device)
             done = terminated = currentTask==n_obs
 
@@ -245,11 +251,13 @@ for runNumber in range(3):
                     energy_list05.append(energy_tuple[0])
                     time_list05.append(time_tuple[0])
                     real_energy_list05.append(real_energy[0])
+                    real_average_list05.append(real_average[0])
                 elif runNumber == 1:
                     result2.append(info)
                     energy_list10.append(energy_tuple[0])
                     time_list10.append(time_tuple[0])
                     real_energy_list10.append(real_energy[0])
+                    real_average_list10.append(real_average[0])
                 elif runNumber == 2:
                     result3.append(info)
                     energy_list20.append(energy_tuple[0])
@@ -261,61 +269,58 @@ for runNumber in range(3):
                     real_energy_list20.append(real_energy[0])
                     real_energy_list_no.append(real_energy[1])
                     real_energy_list_full.append(real_energy[2])
+                    real_average_list20.append(real_average[0])
+                    real_average_list_no.append(real_average[1])
+                    real_average_list_full.append(real_average[2])
                 break
 
 print('Complete')
 
-# for epoch in range(len(result1)):
-#     writer.add_scalars(f"Average Joules-per-kbit ",
-#                        {
-#                            f'DQN LR=0.05': result1[epoch],
-#                            f'DQN LR=0.10': result2[epoch],
-#                            f'DQN LR=0.20': result3[epoch],
-#                        }, epoch+1)
-#
-#
-# for epoch in range(len(result1)):
-#     writer.add_scalars("Energy Comparison ",
-#                        {
-#                           # 'No Offloading': energy_list_no[epoch],
-#                            'DQN LR=0.05': energy_list05[epoch],
-#                            'DQN LR=0.10': energy_list10[epoch],
-#                            'DQN LR=0.20': energy_list20[epoch],
-#                           # 'Full Offloading': energy_list_full[epoch],
-#                        }, epoch+1)
-#
-# for epoch in range(len(result1)):
-#     writer.add_scalars("Time Comparison ",
-#                        {
-#                           # 'No Offloading': time_list_no[epoch],
-#                            'DQN LR=0.05': time_list05[epoch],
-#                            'DQN LR=0.10': time_list10[epoch],
-#                            'DQN LR=0.20': time_list20[epoch],
-#                           # 'Full Offloading': time_list_full[epoch],
-#                        }, epoch+1)
-#
-# for epoch in range(len(result1)):
-#     writer.add_scalars("Real Energy Comparison ",
-#                        {
-#                            #'No Offloading': real_energy_list_no[epoch],
-#                            'DQN LR=0.05': real_energy_list05[epoch],
-#                            'DQN LR=0.10': real_energy_list10[epoch],
-#                            'DQN LR=0.20': real_energy_list20[epoch],
-#                           #  'Full Offloading': real_energy_list_full[epoch],
-#                        }, epoch+1)
-
-for epoch in range(len(loss1)):
-    writer.add_scalars("Convergence Sum ",
+for epoch in range(len(result3)):
+    writer.add_scalars(f"Average Joules-per-kbit ",
                        {
-                           'DQN LR=0.05': sum(loss1[:epoch+1]),
-                           'DQN LR=0.10': sum(loss2[:epoch+1]),
-                           'DQN LR=0.20': sum(loss3[:epoch+1]),
+                           # f'DQN LR=0.05': result1[epoch],
+                           # f'DQN LR=0.10': result2[epoch],
+                           f'DQN LR=0.20': result3[epoch],
+                       }, epoch+1)
+
+
+for epoch in range(len(result3)):
+    writer.add_scalars("Energy Comparison ",
+                       {
+                           # 'DQN LR=0.05': energy_list05[epoch],
+                           # 'DQN LR=0.10': energy_list10[epoch],
+                           'DQN LR=0.20': energy_list20[epoch],
+                       }, epoch+1)
+
+for epoch in range(len(result3)):
+    writer.add_scalars("Time Comparison ",
+                       {
+                           # 'DQN LR=0.05': time_list05[epoch],
+                           # 'DQN LR=0.10': time_list10[epoch],
+                           'DQN LR=0.20': time_list20[epoch],
+                       }, epoch+1)
+
+for epoch in range(len(result3)):
+    writer.add_scalars("Real Energy Comparison ",
+                       {
+                           # 'DQN LR=0.05': real_energy_list05[epoch],
+                           # 'DQN LR=0.10': real_energy_list10[epoch],
+                           'DQN LR=0.20': real_energy_list20[epoch],
+                       }, epoch+1)
+
+for epoch in range(len(result3)):
+    writer.add_scalars("Real Average Comparison ",
+                       {
+                           # 'DQN LR=0.05': real_average_list05[epoch],
+                           # 'DQN LR=0.10': real_average_list10[epoch],
+                           'DQN LR=0.20': real_average_list20[epoch],
                        }, epoch+1)
 
 plot_costs(show_result=True)
 
 plt.ioff()
-plt.plot(-costs_t.numpy(), label="LR = 0.05")
+# plt.plot(-costs_t.numpy(), label="LR = 0.05")
 #plt.plot(-costs_t2.numpy(), label="LR = 0.10")
 #plt.plot(-costs_t3.numpy(), label="LR = 0.20")
 writer.flush()

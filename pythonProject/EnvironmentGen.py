@@ -8,7 +8,6 @@ import math
 NUM_ACTIONS = 100
 NUM_DEVICES = 4
 
-
 class DroneEnv(gym.Env):
 
     def __init__(self, devices=NUM_DEVICES):
@@ -36,13 +35,13 @@ class DroneEnv(gym.Env):
     # Returns the amount of data size and cycle counts for each device's task
     def _get_obs(self):
         return self.data
-
     # Returns the energy cost thus far
     def _get_info(self):
         if (self.total_data != 0):
             return self.total_energy/self.total_data*1e3
         else:
             return 0
+
 
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
@@ -75,10 +74,6 @@ class DroneEnv(gym.Env):
 
         observation = self._get_obs()
         info = self._get_info()
-        # print("\nReward = ", self.total_energy)
-        # print("Observation = ", observation)
-        # print("Info = ", info)
-        # print("Current Task = ", self.currentTask)
 
         return observation, info
 
@@ -103,7 +98,6 @@ class DroneEnv(gym.Env):
         uav_upload_energy = sm.uplink_energy(uav_upload_time)
         # Step 3: Process offloaded data on GBS
         gbs_compute_time = sm.offload_compute_time(offload_cycle)
-
         # Energy cost and time delay for taking action 'a'
         total_energy = round(uav_compute_energy + uav_upload_energy, 3)
         total_time = round(node_upload_time + max(uav_compute_time, (uav_upload_time + gbs_compute_time)) , 3)
@@ -112,7 +106,6 @@ class DroneEnv(gym.Env):
         no_offloading_compute_time = sm.local_compute_time(cycle)
         no_offloading_time = round(node_upload_time + no_offloading_compute_time ,3)
         no_offloading_energy = round(sm.local_compute_energy(no_offloading_compute_time), 3)
-
         # Energy cost and time delay for FULL offloading
         full_offloading_upload_time = sm.uav_transmit_time(data)
         full_offloading_compute_time = sm.offload_compute_time(cycle)
@@ -129,6 +122,7 @@ class DroneEnv(gym.Env):
         self.no_offload_total_time += no_offloading_time
         self.full_offload_total_time += full_offloading_time
         self.total_data += data
+        real_average = (self.real_total_energy[0] / self.total_data * 1e3, self.real_total_energy[1] / self.total_data * 1e3, self.real_total_energy[2] / self.total_data * 1e3)
         #energy_tuple = (self.total_energy+total_energy, self.no_offload_total_energy, self.full_offload_total_energy)
         time_tuple = (self.total_time, self.no_offload_total_time, self.full_offload_total_time)
         observation = self._get_obs()
@@ -136,7 +130,6 @@ class DroneEnv(gym.Env):
 
         #Penalties for violation
         MAX_task_delay = min(no_offloading_time, full_offloading_time) - 0.015
-
         if total_time > MAX_task_delay:
             total_energy = data/1e3/4*(total_time/MAX_task_delay)
         if no_offloading_time > MAX_task_delay:
@@ -152,4 +145,4 @@ class DroneEnv(gym.Env):
         total_energy_per_kbits = total_energy/data*1e3
         info = self._get_info()
 
-        return [-total_energy_per_kbits], observation, info, self.currentTask, energy_tuple, time_tuple, real_energy
+        return [-total_energy_per_kbits], observation, info, self.currentTask, energy_tuple, time_tuple, real_energy, real_average
